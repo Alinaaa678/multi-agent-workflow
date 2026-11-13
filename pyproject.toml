@@ -9,6 +9,9 @@ description = "B06 QualityConsensusAgent: consensus, plan quality and trusted ex
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
 [project.scripts]
 multiagent-quality = "multiagent_quality.cli:main"
 
