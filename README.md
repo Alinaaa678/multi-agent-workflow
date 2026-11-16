@@ -1,15 +1,35 @@
-# B06 QualityConsensusAgent
+# B06 质量共识 Agent
 
-This block evaluates proposals, plans, execution evidence, and defects. It does not write task state or dispatch work; B02 owns those transitions.
+B06 负责提案共识评价、任务计划检查、受控测试执行、证据校验和缺陷复测。它只返回带版本绑定的质量结果与事件，不写入任务状态，也不负责派发任务；状态迁移由 B02 编排器负责。
 
-## Run without third-party test tools
+## 功能
+
+- `evaluate_consensus`：检查四类角色立场、六名人类评审、阻断异议、事实验证、条件通过和终止轮次。
+- `validate_plan`：检查规格与契约版本、需求覆盖、重复产物、缺失依赖和依赖环，并返回稳定拓扑序。
+- `run_case` / `run_suite`：在受限子进程中运行规定测试，支持超时、输出上限、进程树终止和日志哈希。
+- `check_evidence`：验证 HMAC、任务与提交上下文、时间窗口、测试编号、退出码、日志和产物 SHA-256。
+- `QualityConsensusAgent`：组合上述能力，向 B02 返回验收、拒绝和重验结果。
+- `weighted_score`：按固定权重计算方案评分，严格拒绝缺维度、越界值和权重和不为 1 的输入。
+
+## 运行
+
+无需第三方测试工具即可运行冒烟测试：
 
 ```powershell
 python -m tests.smoke
 ```
 
-The module exposes `QualityConsensusAgent`, `evaluate_consensus`, `validate_plan`, `check_evidence`, `run_suite`, and `weighted_score`.
+完整测试：
 
-The trusted runner signs evidence in a process that must be kept separate from model workers. The signing key must never be passed in a task prompt or model environment. A report is accepted only when its context, timestamps, test IDs, exit codes, logs, artifact hashes, and prescribed evidence all match the frozen snapshot.
+```powershell
+python -m pip install -e ".[test]"
+python -m pytest -q
+```
 
-`attempt_id` identifies every dispatch and increases on revalidation. `retry_count` counts failure retries only; upstream invalidation uses `revalidation_id` and does not consume the retry budget until the revalidation itself fails.
+## 证据边界
+
+可信 runner 在与模型 worker 分离的进程中签名证据。签名密钥不能进入任务提示词或模型环境。只有当任务上下文、时间戳、测试编号、退出码、日志哈希、产物哈希和规定证据都与冻结快照一致时，报告才可被接受。
+
+`attempt_id` 标识每次派发，并在重验时递增；`retry_count` 只统计失败重派。上游输入变化使用 `revalidation_id`，只有重验本身失败时才消耗重试预算。
+
+校园失物招领只是外部 fixture，核心模块不写死业务字段。B06 不把模型回复、本地文件存在或多数意见当作测试证据。

@@ -21,7 +21,9 @@ def main():
     check('score',abs(weighted_score({'value':5,'cost':1},{'value':.7,'cost':.3})-3.8)<1e-9)
     p={'spec_version':'S1','contract_version':'C1','tasks':[{'task_id':'A','goal':'a','req_refs':['R1'],'outputs':['a'],'depends_on':['B'],'acceptance':['x'],'required_test_ids':['T-A']},{'task_id':'B','goal':'b','req_refs':['R1'],'outputs':['b'],'depends_on':['A'],'acceptance':['x'],'required_test_ids':['T-B']}]}
     check('plan cycle',not validate_plan(p,['R1','R2'])['accepted'])
-    with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1] / '.test-tmp') as td:
+    temp_root = Path(__file__).resolve().parents[1] / '.test-tmp'
+    temp_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=temp_root) as td:
         root=Path(td);log=root/'log.txt';log.write_text('ok',encoding='utf8');key=b'k'*32
         report={'schema_version':1,'context':{'task_id':'T1','attempt_id':1},'started_at':'2026-11-13T00:00:00+00:00','finished_at':'2026-11-13T00:00:01+00:00','cases':[{'test_id':'C1','status':'PASS','exit_code':0,'log_path':'log.txt','log_sha256':hashlib.sha256(b'ok').hexdigest()}],'artifacts':[]}
         env=sign_report(report,key);check('evidence',check_evidence(env,key=key,expected_context=report['context'],required_test_ids=['C1'],artifact_root=root,required_artifacts=[],now=datetime(2026,11,13,0,0,2,tzinfo=timezone.utc))['accepted'])
