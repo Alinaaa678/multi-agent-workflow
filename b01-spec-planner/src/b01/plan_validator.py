@@ -1,16 +1,29 @@
-"""B01 plan_validator：任务包结构、需求覆盖、产物归属与 DAG 校验。
+"""B01 计划校验（通用版）：结构、需求覆盖、产物归属、DAG 与版本一致性。
 
-输出兼容 B06 只读计划检查的核心结论（ok / reasons / topological_order），
-并额外检查 B01 职责范围内的标准字段、关键链和规定测试覆盖。
+输出 `ok / reasons / warnings / topological_order / covered_requirements`。
+与旧版的关键差异：
+- 不再要求固定 T01—T11、固定 capability 集合或固定关键链；
+- 额外校验 `plan_version` 格式、`input_snapshot`、跨块引用与追溯一致性；
+- 保留 `validate_plan(plan, required_requirements)` 兼容签名。
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from .design import PROJECT_ID, REQUIRED_REQUIREMENTS
-from .task_planner import topological_sort
+from .dynamic_planner import topological_sort
+
+REQUIRED_PLAN_FIELDS = (
+    "project_id",
+    "spec_version",
+    "contract_version",
+    "plan_version",
+    "required_requirements",
+    "tasks",
+    "topological_order",
+)
 
 REQUIRED_TASK_FIELDS = (
     "role_id",
@@ -59,8 +72,9 @@ LIST_FIELDS = (
     "required_test_ids",
 )
 
-ALLOWED_CAPABILITIES = {"orchestrator", "DB-01", "BE-01", "FE-01", "QA-01"}
-CRITICAL_CHAIN = ["T01", "T02", "T03", "T04", "T05", "T10", "T11"]
+ALLOWED_PRIORITIES = {"P0", "P1", "P2"}
+PLAN_VERSION_PATTERN = re.compile(r"^PLAN-[A-Za-z0-9._-]+-v[0-9]+\.[0-9]+$")
+MAX_TIMEOUT = 3600
 
 
 @dataclass
@@ -112,7 +126,11 @@ def validate_plan(
         reasons.append("plan must be an object")
         return report
 
-    required = list(required_requirements or plan.get("required_requirements") or REQUIRED_REQUIREMENTS)
+    for name in REQUIRED_PLAN_FIELDS:
+        if name not in plan:
+            reasons.append(f"plan: missing field {name}")
+
+    required = list(required_requirements or plan.get("required_requirements") or [])
     if not _unique_strings(required):
         reasons.append("required_requirements must be a unique non-empty string list")
         required = list(dict.fromkeys(required)) if isinstance(required, list) else []
@@ -120,12 +138,29 @@ def validate_plan(
     spec_version = plan.get("spec_version")
     contract_version = plan.get("contract_version")
     plan_version = plan.get("plan_version")
-    if not _nonempty_text(spec_version):
-        reasons.append("plan.spec_version must be a non-empty string")
-    if not _nonempty_text(contract_version):
-        reasons.append("plan.contract_version must be a non-empty string")
-    if not _nonempty_text(plan_version):
-        reasons.append("plan.plan_version must be a non-empty string")
+    for label, value in (
+        ("spec_version", spec_version),
+        ("contract_version", contract_version),
+        ("plan_version", plan_version),
+        ("project_id", plan.get("project_id")),
+    ):
+        if not _nonempty_text(value):
+            reasons.append(f"plan.{label} must be a non-empty string")
+    if _nonempty_text(plan_version) and not PLAN_VERSION_PATTERN.match(plan_version):
+        reasons.append(f"plan.plan_version must match PLAN-<project>-v<major>.<minor>, got {plan_version}")
+
+    snapshot = plan.get("input_snapshot")
+    if snapshot is not None:
+        if not isinstance(snapshot, dict):
+            reasons.append("plan.input_snapshot must be an object")
+        else:
+            for name in ("spec_sha256", "spec_version", "contract_version"):
+                if not _nonempty_text(snapshot.get(name)):
+                    reasons.append(f"plan.input_snapshot.{name} must be a non-empty string")
+            if snapshot.get("spec_version") not in (None, spec_version):
+                reasons.append("plan.input_snapshot.spec_version does not match plan.spec_version")
+            if snapshot.get("contract_version") not in (None, contract_version):
+                reasons.append("plan.input_snapshot.contract_version does not match plan.contract_version")
 
     tasks = plan.get("tasks")
     if not isinstance(tasks, list) or not tasks:
@@ -163,11 +198,14 @@ def validate_plan(
         for name in LIST_FIELDS:
             if name not in task:
                 continue
-            allow_empty = name == "depends_on"
+            allow_empty = name in ("depends_on", "design_refs")
             if not _unique_strings(task[name], allow_empty=allow_empty):
-                reasons.append(f"{label}: {name} must be a unique string list" + ("" if allow_empty else " and non-empty"))
+                suffix = "" if allow_empty else " and non-empty"
+                reasons.append(f"{label}: {name} must be a unique string list{suffix}")
 
-        if task.get("project_id") != plan.get("project_id", PROJECT_ID):
+        if task.get("priority") not in ALLOWED_PRIORITIES:
+            reasons.append(f"{label}: priority must be one of {sorted(ALLOWED_PRIORITIES)}")
+        if task.get("project_id") != plan.get("project_id"):
             reasons.append(f"{label}: project_id does not match plan")
         for version_field, expected in (("spec_version", spec_version), ("contract_version", contract_version)):
             if task.get(version_field) != expected:
@@ -179,12 +217,9 @@ def validate_plan(
             reasons.append(f"{label}: unknown requirements {unknown}")
         covered.update(refs)
 
-        if task.get("capability") not in ALLOWED_CAPABILITIES:
-            reasons.append(f"{label}: capability must be one of {sorted(ALLOWED_CAPABILITIES)}")
-
         timeout = task.get("timeout")
-        if not isinstance(timeout, int) or isinstance(timeout, bool) or timeout <= 0:
-            reasons.append(f"{label}: timeout must be a positive integer")
+        if not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= MAX_TIMEOUT:
+            reasons.append(f"{label}: timeout must be an integer within 1..{MAX_TIMEOUT}")
         retry_budget = task.get("retry_budget")
         if not isinstance(retry_budget, int) or isinstance(retry_budget, bool) or retry_budget < 0:
             reasons.append(f"{label}: retry_budget must be a non-negative integer")
@@ -199,23 +234,55 @@ def validate_plan(
         if req_id not in covered:
             reasons.append(f"uncovered requirement: {req_id}")
 
+    missing_dependency = False
     for tid, task in registry.items():
         for dep in task.get("depends_on") if isinstance(task.get("depends_on"), list) else []:
             if dep not in registry:
                 reasons.append(f"{tid}: missing dependency {dep}")
+                missing_dependency = True
             elif dep == tid:
                 reasons.append(f"{tid}: self dependency")
+                missing_dependency = True
 
     order: list[str] = []
-    if not any("missing dependency" in reason or "self dependency" in reason for reason in reasons):
+    if not missing_dependency:
         try:
             order = topological_sort(registry.values())
         except ValueError as exc:
             reasons.append(str(exc))
 
+    declared_order = plan.get("topological_order")
+    if declared_order is not None:
+        if not isinstance(declared_order, list) or sorted(declared_order) != sorted(registry):
+            reasons.append("plan.topological_order must list every task exactly once")
+        elif order and declared_order != order:
+            warnings.append("plan.topological_order differs from recomputed deterministic order")
+
+    report.ok = not reasons
+    report.topological_order = order or (declared_order if isinstance(declared_order, list) else [])
+    report.covered_requirements = sorted(covered)
+    return report
+
+
+def validate_reference_profile(plan: dict[str, Any]) -> ValidationReport:
+    """校验“校园失物招领参考固定任务包”的额外约束。
+
+    这些约束只属于 fixture（`task_planner.build_plan()` 的 T01—T11 参考包），
+    不适用于任意规格的通用计划；通用计划请使用 `validate_plan`。
+    """
+    reasons: list[str] = []
+    warnings: list[str] = []
+    report = ValidationReport(ok=False, reasons=reasons, warnings=warnings)
+    tasks = plan.get("tasks")
+    if not isinstance(tasks, list) or not tasks:
+        reasons.append("plan.tasks must be a non-empty list")
+        return report
+    registry = {task.get("task_id"): task for task in tasks if isinstance(task, dict)}
+
+    order = validate_plan(plan).topological_order
     if order:
         positions = {tid: index for index, tid in enumerate(order)}
-        for left, right in zip(CRITICAL_CHAIN, CRITICAL_CHAIN[1:]):
+        for left, right in zip(REFERENCE_CRITICAL_CHAIN, REFERENCE_CRITICAL_CHAIN[1:]):
             if left in positions and right in positions and positions[left] >= positions[right]:
                 reasons.append(f"critical chain violated: {left} must precede {right}")
 
@@ -237,16 +304,41 @@ def validate_plan(
     t10 = registry.get("T10")
     if t10:
         expected_deps = {"T03", "T04", "T05", "T06", "T07", "T08", "T09"}
-        actual_deps = set(t10.get("depends_on") or [])
-        missing = sorted(expected_deps - actual_deps)
+        missing = sorted(expected_deps - set(t10.get("depends_on") or []))
         if missing:
             reasons.append(f"T10: missing dependencies {missing}")
 
-    declared_order = plan.get("topological_order")
-    if declared_order is not None and declared_order != order:
-        warnings.append("plan.topological_order differs from recomputed order")
-
     report.ok = not reasons
     report.topological_order = order
-    report.covered_requirements = sorted(covered)
+    return report
+
+
+REFERENCE_CRITICAL_CHAIN = ["T01", "T02", "T03", "T04", "T05", "T10", "T11"]
+
+
+def validate_traceability(plan: dict[str, Any], traceability: dict[str, Any]) -> ValidationReport:
+    """校验追溯表与计划一致：任务引用存在、需求覆盖一致。"""
+    reasons: list[str] = []
+    warnings: list[str] = []
+    task_ids = {task["task_id"] for task in plan.get("tasks", []) if isinstance(task, dict)}
+    items = traceability.get("items")
+    if not isinstance(items, list):
+        reasons.append("traceability.items must be a list")
+        items = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            reasons.append(f"traceability.items[{index}] must be an object")
+            continue
+        for ref in item.get("task_refs") or []:
+            if ref not in task_ids:
+                reasons.append(f"traceability.items[{index}]: unknown task_ref {ref}")
+    if traceability.get("plan_version") != plan.get("plan_version"):
+        reasons.append("traceability.plan_version does not match plan")
+    uncovered = traceability.get("uncovered_requirements")
+    if uncovered:
+        reasons.append(f"traceability.uncovered_requirements must be empty, got {uncovered}")
+    if traceability.get("spec_version") != plan.get("spec_version"):
+        reasons.append("traceability.spec_version does not match plan")
+    report = ValidationReport(ok=not reasons, reasons=reasons, warnings=warnings)
+    report.covered_requirements = list(traceability.get("covered_requirements") or [])
     return report

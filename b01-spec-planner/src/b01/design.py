@@ -9,7 +9,7 @@ from __future__ import annotations
 PROJECT_ID = "campus-lost-found"
 SPEC_VERSION = "S1-v1.0"
 CONTRACT_VERSION = "C1-v1.0"
-PLAN_VERSION = "PLAN-v1.0"
+PLAN_VERSION = "PLAN-campus-lost-found-v1.0"
 
 REQUIRED_REQUIREMENTS = ["LR-01", "LR-02", "LR-03", "LR-04", "LR-05"]
 

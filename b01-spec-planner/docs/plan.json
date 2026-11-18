@@ -1,8 +1,12 @@
 {
+  "schema_version": "b01.plan.v1",
   "project_id": "campus-lost-found",
+  "title": "校园失物招领系统（参考固定任务包）",
   "spec_version": "S1-v1.0",
   "contract_version": "C1-v1.0",
-  "plan_version": "PLAN-v1.0",
+  "plan_version": "PLAN-campus-lost-found-v1.0",
+  "generated_by": "B01 SpecPlannerAgent reference implementation",
+  "generated_at": "2026-11-18T00:00:00+00:00",
   "required_requirements": [
     "LR-01",
     "LR-02",
@@ -10,7 +14,6 @@
     "LR-04",
     "LR-05"
   ],
-  "generated_by": "B01 SpecPlannerAgent reference implementation",
   "tasks": [
     {
       "role_id": "SpecPlannerAgent",
@@ -599,5 +602,17 @@
     "T09",
     "T10",
     "T11"
-  ]
+  ],
+  "input_snapshot": {
+    "spec_source": "reference",
+    "spec_format": "json",
+    "spec_sha256": "8d3a039cff9631b9b16ae142354857d311030ac0e0b023f805df220f80104e8e",
+    "contract_sha256": "d189b275716f97bedd203c5c044a6ae0fa46a667f131d45c891cd96ce4bf55d5",
+    "spec_version": "S1-v1.0",
+    "contract_version": "C1-v1.0",
+    "requirement_count": 5,
+    "design_entry_count": 14,
+    "contract_operation_count": 0,
+    "schema_version": "b01.spec.reference"
+  }
 }

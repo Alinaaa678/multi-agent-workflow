@@ -34,6 +34,7 @@
     ├── errors.py            # 领域错误码与 HTTP 映射
     ├── blackboard.py        # task_store：状态、租约、快照、事件、检查点、证据、只读视图
     ├── artifact_store.py    # artifact_store：只追加、版本绑定、快照有效才可读
+    ├── task_state.py        # task_state_store：任务运行/九态/尝试历史/运行事件/检查点（D18/D19）
     ├── campus_db.py         # 案例 T02 数据层：三张表、校验、隐私视图、事务、测试数据
     ├── run_checks.py        # 自检入口
     ├── migrations/
@@ -43,8 +44,27 @@
     └── tests/
         ├── __init__.py
         ├── test_blackboard.py
+        ├── test_task_state.py
         └── test_campus_db.py
 ```
+
+## 2.1 任务状态持久化（第二阶段 D18/D19）
+
+`task_state.py` 提供 `TaskStateStore`，与讨论流程的黑板数据共用 `blackboard.db`
+但表结构独立：
+
+- **Task Registry**：`task_plans` 保存计划文档与版本（内容不同必须换新 `plan_version`）。
+- **Execution State**：`task_runs` + `task_run_tasks`，支持九态与 `rev` 乐观锁（CAS）。
+- **尝试历史**：`task_attempts` 按 `(run_id, task_id, attempt_id)` 保留全部历史尝试，
+  旧记录不覆盖，便于追溯重试过程。
+- **任务事件**：`task_run_events` 按 `sequence` 单调递增，`event_id` 幂等；
+  绑定 `plan_version` / `input_snapshot` / `candidate_commit`。
+- **断点恢复**：`task_run_checkpoints` + `build_run_checkpoint()` / `restore_run()`；
+  恢复视图区分「已完成 / 在途 / 可恢复」，已完成任务不会被重复执行。
+- **只读聚合**：`get_run_view(run_id)` 供 B05 与 B06 读取，不提供状态写入旁路。
+
+本模块**不判断业务迁移合法性**（那是 B02 的职责），只拒绝非法状态值与 CAS 冲突。
+
 
 ## 3. 环境要求与快速开始
 
@@ -57,7 +77,7 @@
 python -m b03_implementation.run_checks
 ```
 
-预期输出：`Ran 19 tests ... OK`
+预期输出：`Ran 37 tests ... OK`
 
 ## 4. 关键设计约束
 

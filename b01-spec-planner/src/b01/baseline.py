@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .design import C1_OPERATIONS, REQUIRED_REQUIREMENTS
-from .plan_validator import validate_plan
+from .plan_validator import validate_plan, validate_reference_profile
 
 BASELINE_ARTIFACTS = {
     "r1": "docs/r1.json",
@@ -57,6 +57,8 @@ def register_baseline(
 
     plan_report = validate_plan(plan, REQUIRED_REQUIREMENTS)
     reasons.extend(f"plan: {reason}" for reason in plan_report.reasons)
+    reference_report = validate_reference_profile(plan)
+    reasons.extend(f"plan: {reason}" for reason in reference_report.reasons)
 
     if contract.get("contract_version") != plan.get("contract_version"):
         reasons.append("contract: contract_version does not match plan")

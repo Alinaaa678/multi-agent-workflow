@@ -7,3 +7,15 @@ build/
 .env
 reports/
 *.key
+
+# 前端依赖与构建产物（由 npm ci / npm run build 生成）
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# 本地演示与验证产生的临时状态，不入库
+work/
+_measure.py
+.pytest_cache/
+*.db
+*.sqlite3

@@ -1,0 +1,1236 @@
+{
+  "schema_version": "b01.plan.v1",
+  "project_id": "campus-lost-found",
+  "title": "校园失物招领系统",
+  "spec_version": "S1-v1.0",
+  "contract_version": "C1-v1.0",
+  "plan_version": "PLAN-campus-lost-found-v1.0",
+  "generated_by": "B01 SpecPlannerAgent dynamic planner",
+  "generated_at": "2026-11-18T09:05:31+00:00",
+  "required_requirements": [
+    "LR-01",
+    "LR-02",
+    "LR-03",
+    "LR-04",
+    "LR-05"
+  ],
+  "tasks": [
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T01",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-05"
+      ],
+      "design_refs": [
+        "DS-AUTH-01"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现 DS-AUTH-01（用户与身份）：凭据以 Argon2id 哈希存储，任何公开响应不含 password_hash。",
+      "inputs": [
+        "S1-v1.0",
+        "C1-v1.0",
+        "register",
+        "login",
+        "logout"
+      ],
+      "outputs": [
+        "artifact-ds-auth-01"
+      ],
+      "depends_on": [],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/用户与身份/ds-auth-01.*"
+      ],
+      "acceptance": [
+        "凭据以 Argon2id 哈希存储，任何公开响应不含 password_hash。"
+      ],
+      "required_test_ids": [
+        "TC-AUTH-01",
+        "TC-AUTH-02"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T02",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-05"
+      ],
+      "design_refs": [
+        "DS-USER-01"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现 DS-USER-01（用户与身份）：本人资料与本人记录只能由会话身份访问，越权返回 FORBIDDEN。",
+      "inputs": [
+        "S1-v1.0",
+        "C1-v1.0",
+        "get_me",
+        "update_me",
+        "list_my_posts",
+        "list_my_claims"
+      ],
+      "outputs": [
+        "artifact-ds-user-01"
+      ],
+      "depends_on": [],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/用户与身份/ds-user-01.*"
+      ],
+      "acceptance": [
+        "本人资料与本人记录只能由会话身份访问，越权返回 FORBIDDEN。"
+      ],
+      "required_test_ids": [
+        "TC-USER-01"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T03",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-02"
+      ],
+      "design_refs": [
+        "DS-LOST-01"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现 DS-LOST-01（失物发布与搜索）：lost_at 必填且带时区；缺失、空值或非法格式拒绝且不写入。",
+      "inputs": [
+        "S1-v1.0",
+        "C1-v1.0",
+        "publish_lost"
+      ],
+      "outputs": [
+        "artifact-ds-lost-01"
+      ],
+      "depends_on": [],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/失物发布与搜索/ds-lost-01.*"
+      ],
+      "acceptance": [
+        "lost_at 必填且带时区；缺失、空值或非法格式拒绝且不写入。"
+      ],
+      "required_test_ids": [
+        "TC-P01",
+        "TC-P02",
+        "TC-P03"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T04",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-03"
+      ],
+      "design_refs": [
+        "DS-LOST-02"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现 DS-LOST-02（失物发布与搜索）：搜索与详情使用公开视图，page_size 限制在 1—100。",
+      "inputs": [
+        "S1-v1.0",
+        "C1-v1.0",
+        "search_lost",
+        "get_lost"
+      ],
+      "outputs": [
+        "artifact-ds-lost-02"
+      ],
+      "depends_on": [],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/失物发布与搜索/ds-lost-02.*"
+      ],
+      "acceptance": [
+        "搜索与详情使用公开视图，page_size 限制在 1—100。"
+      ],
+      "required_test_ids": [
+        "TC-SEARCH-01"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T05",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-04"
+      ],
+      "design_refs": [
+        "DS-CLAIM-01"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现 DS-CLAIM-01（认领申请）：禁止认领本人发布信息；(lost_item_id, applicant_id) 唯一约束防重复申请。",
+      "inputs": [
+        "S1-v1.0",
+        "C1-v1.0",
+        "create_claim"
+      ],
+      "outputs": [
+        "artifact-ds-claim-01"
+      ],
+      "depends_on": [],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/认领申请/ds-claim-01.*"
+      ],
+      "acceptance": [
+        "禁止认领本人发布信息；(lost_item_id, applicant_id) 唯一约束防重复申请。"
+      ],
+      "required_test_ids": [
+        "TC-CLAIM-01",
+        "TC-CLAIM-02"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T06",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [
+        "DS-COMMON-01"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现 DS-COMMON-01（公共约束）：统一响应信封：成功 {ok:true,data}，失败 {ok:false,error:{code,field,message}}。",
+      "inputs": [
+        "S1-v1.0",
+        "C1-v1.0"
+      ],
+      "outputs": [
+        "artifact-ds-common-01"
+      ],
+      "depends_on": [],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/公共约束/ds-common-01.*"
+      ],
+      "acceptance": [
+        "统一响应信封：成功 {ok:true,data}，失败 {ok:false,error:{code,field,message}}。"
+      ],
+      "required_test_ids": [
+        "TC-FLOW-01"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T07",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现契约操作 register（POST /api/v1/auth/register，认证=False）",
+      "inputs": [
+        "C1-v1.0",
+        "operation:register"
+      ],
+      "outputs": [
+        "contract-register"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/register.*"
+      ],
+      "acceptance": [
+        "POST /api/v1/auth/register 返回 201",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-REGISTER"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T08",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现契约操作 login（POST /api/v1/auth/login，认证=False）",
+      "inputs": [
+        "C1-v1.0",
+        "operation:login"
+      ],
+      "outputs": [
+        "contract-login"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/login.*"
+      ],
+      "acceptance": [
+        "POST /api/v1/auth/login 返回 200",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-LOGIN"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T09",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现契约操作 logout（POST /api/v1/auth/logout，认证=True）",
+      "inputs": [
+        "C1-v1.0",
+        "operation:logout"
+      ],
+      "outputs": [
+        "contract-logout"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/logout.*"
+      ],
+      "acceptance": [
+        "POST /api/v1/auth/logout 返回 200",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-LOGOUT"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T10",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现契约操作 get_me（GET /api/v1/me，认证=True）",
+      "inputs": [
+        "C1-v1.0",
+        "operation:get_me"
+      ],
+      "outputs": [
+        "contract-get-me"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/get-me.*"
+      ],
+      "acceptance": [
+        "GET /api/v1/me 返回 200",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-GET-ME"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T11",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现契约操作 update_me（PATCH /api/v1/me，认证=True）",
+      "inputs": [
+        "C1-v1.0",
+        "operation:update_me"
+      ],
+      "outputs": [
+        "contract-update-me"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/update-me.*"
+      ],
+      "acceptance": [
+        "PATCH /api/v1/me 返回 200",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-UPDATE-ME"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T12",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现契约操作 list_my_posts（GET /api/v1/me/lost-items，认证=True）",
+      "inputs": [
+        "C1-v1.0",
+        "operation:list_my_posts"
+      ],
+      "outputs": [
+        "contract-list-my-posts"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/list-my-posts.*"
+      ],
+      "acceptance": [
+        "GET /api/v1/me/lost-items 返回 200",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-LIST-MY-POSTS"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T13",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现契约操作 list_my_claims（GET /api/v1/me/claims，认证=True）",
+      "inputs": [
+        "C1-v1.0",
+        "operation:list_my_claims"
+      ],
+      "outputs": [
+        "contract-list-my-claims"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/list-my-claims.*"
+      ],
+      "acceptance": [
+        "GET /api/v1/me/claims 返回 200",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-LIST-MY-CLAIMS"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T14",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现契约操作 publish_lost（POST /api/v1/lost-items，认证=True）",
+      "inputs": [
+        "C1-v1.0",
+        "operation:publish_lost"
+      ],
+      "outputs": [
+        "contract-publish-lost"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/publish-lost.*"
+      ],
+      "acceptance": [
+        "POST /api/v1/lost-items 返回 201",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-PUBLISH-LOST"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T15",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现契约操作 search_lost（GET /api/v1/lost-items，认证=False）",
+      "inputs": [
+        "C1-v1.0",
+        "operation:search_lost"
+      ],
+      "outputs": [
+        "contract-search-lost"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/search-lost.*"
+      ],
+      "acceptance": [
+        "GET /api/v1/lost-items 返回 200",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-SEARCH-LOST"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T16",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现契约操作 get_lost（GET /api/v1/lost-items/{id}，认证=False）",
+      "inputs": [
+        "C1-v1.0",
+        "operation:get_lost"
+      ],
+      "outputs": [
+        "contract-get-lost"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/get-lost.*"
+      ],
+      "acceptance": [
+        "GET /api/v1/lost-items/{id} 返回 200",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-GET-LOST"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T17",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "实现契约操作 create_claim（POST /api/v1/lost-items/{id}/claims，认证=True）",
+      "inputs": [
+        "C1-v1.0",
+        "operation:create_claim"
+      ],
+      "outputs": [
+        "contract-create-claim"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/create-claim.*"
+      ],
+      "acceptance": [
+        "POST /api/v1/lost-items/{id}/claims 返回 201",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-CREATE-CLAIM"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "QualityConsensusAgent",
+      "block_id": "B06",
+      "task_id": "T18",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01"
+      ],
+      "design_refs": [
+        "DS-AUTH-01",
+        "DS-COMMON-01"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "验收需求 LR-01：注册登录",
+      "inputs": [
+        "S1-v1.0",
+        "LR-01",
+        "候选产物"
+      ],
+      "outputs": [
+        "evidence-lr-01"
+      ],
+      "depends_on": [
+        "T01",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17"
+      ],
+      "capability": "QA-01",
+      "write_scope": [
+        "evidence/lr-01/*"
+      ],
+      "acceptance": [
+        "重复账号拒绝",
+        "错误凭据拒绝",
+        "未登录不能发布或申请认领",
+        "满足约束: password_hash 不得出现在任何公开响应"
+      ],
+      "required_test_ids": [
+        "TC-LR-01-POS",
+        "TC-LR-01-NEG"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "QualityConsensusAgent",
+      "block_id": "B06",
+      "task_id": "T19",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-02"
+      ],
+      "design_refs": [
+        "DS-COMMON-01",
+        "DS-LOST-01"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "验收需求 LR-02：发布失物",
+      "inputs": [
+        "S1-v1.0",
+        "LR-02",
+        "候选产物"
+      ],
+      "outputs": [
+        "evidence-lr-02"
+      ],
+      "depends_on": [
+        "T03",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17"
+      ],
+      "capability": "QA-01",
+      "write_scope": [
+        "evidence/lr-02/*"
+      ],
+      "acceptance": [
+        "合法输入生成记录",
+        "lost_at 缺失、空值或格式错误时拒绝且不写入",
+        "满足约束: publisher_id 由会话取得，不接受客户端指定；status 本轮仅取 waiting"
+      ],
+      "required_test_ids": [
+        "TC-LR-02-POS",
+        "TC-LR-02-NEG"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "QualityConsensusAgent",
+      "block_id": "B06",
+      "task_id": "T20",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-03"
+      ],
+      "design_refs": [
+        "DS-COMMON-01",
+        "DS-LOST-02"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "验收需求 LR-03：关键词及地点搜索",
+      "inputs": [
+        "S1-v1.0",
+        "LR-03",
+        "候选产物"
+      ],
+      "outputs": [
+        "evidence-lr-03"
+      ],
+      "depends_on": [
+        "T04",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17"
+      ],
+      "capability": "QA-01",
+      "write_scope": [
+        "evidence/lr-03/*"
+      ],
+      "acceptance": [
+        "匹配项可检索",
+        "无匹配返回空列表",
+        "详情字段与发布结果一致",
+        "满足约束: 公开视图使用 LostView；page_size 范围 1—100"
+      ],
+      "required_test_ids": [
+        "TC-LR-03-POS",
+        "TC-LR-03-NEG"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "QualityConsensusAgent",
+      "block_id": "B06",
+      "task_id": "T21",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-04"
+      ],
+      "design_refs": [
+        "DS-CLAIM-01",
+        "DS-COMMON-01"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "验收需求 LR-04：认领申请",
+      "inputs": [
+        "S1-v1.0",
+        "LR-04",
+        "候选产物"
+      ],
+      "outputs": [
+        "evidence-lr-04"
+      ],
+      "depends_on": [
+        "T05",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17"
+      ],
+      "capability": "QA-01",
+      "write_scope": [
+        "evidence/lr-04/*"
+      ],
+      "acceptance": [
+        "禁止认领本人发布的信息",
+        "重复申请拒绝",
+        "本人可查询申请结果",
+        "满足约束: (lost_item_id, applicant_id) 唯一"
+      ],
+      "required_test_ids": [
+        "TC-LR-04-POS",
+        "TC-LR-04-NEG"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "QualityConsensusAgent",
+      "block_id": "B06",
+      "task_id": "T22",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-05"
+      ],
+      "design_refs": [
+        "DS-AUTH-01",
+        "DS-COMMON-01",
+        "DS-USER-01"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "验收需求 LR-05：本人资料及本人记录",
+      "inputs": [
+        "S1-v1.0",
+        "LR-05",
+        "候选产物"
+      ],
+      "outputs": [
+        "evidence-lr-05"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17"
+      ],
+      "capability": "QA-01",
+      "write_scope": [
+        "evidence/lr-05/*"
+      ],
+      "acceptance": [
+        "仅能读写本人数据",
+        "分页返回本人记录",
+        "满足约束: 越权访问返回 FORBIDDEN"
+      ],
+      "required_test_ids": [
+        "TC-LR-05-POS",
+        "TC-LR-05-NEG"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "QualityConsensusAgent",
+      "block_id": "B06",
+      "task_id": "T23",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [
+        "DS-AUTH-01",
+        "DS-USER-01",
+        "DS-LOST-01",
+        "DS-LOST-02",
+        "DS-CLAIM-01",
+        "DS-COMMON-01"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "执行联调回归并登记缺陷",
+      "inputs": [
+        "全部候选产物",
+        "验收证据",
+        "环境说明"
+      ],
+      "outputs": [
+        "integration-report-campus-lost-found"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17",
+        "T18",
+        "T19",
+        "T20",
+        "T21",
+        "T22"
+      ],
+      "capability": "QA-01",
+      "write_scope": [
+        "evidence/campus-lost-found/integration/*"
+      ],
+      "acceptance": [
+        "规定用例全部通过",
+        "无未关闭阻断缺陷",
+        "报告对应同一组产物版本"
+      ],
+      "required_test_ids": [
+        "TC-REG-CAMPUS-LOST-FOUND",
+        "TC-FLOW-01"
+      ],
+      "priority": "P0",
+      "timeout": 1200,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "SpecPlannerAgent",
+      "block_id": "B01",
+      "task_id": "T24",
+      "project_id": "campus-lost-found",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "design_refs": [
+        "DS-AUTH-01",
+        "DS-USER-01",
+        "DS-LOST-01",
+        "DS-LOST-02",
+        "DS-CLAIM-01",
+        "DS-COMMON-01"
+      ],
+      "spec_version": "S1-v1.0",
+      "contract_version": "C1-v1.0",
+      "goal": "汇总交付包、运行说明与需求追溯表",
+      "inputs": [
+        "集成报告",
+        "全部任务产物",
+        "追溯表"
+      ],
+      "outputs": [
+        "delivery-package-campus-lost-found"
+      ],
+      "depends_on": [
+        "T23"
+      ],
+      "capability": "orchestrator",
+      "write_scope": [
+        "docs/delivery-campus-lost-found.md"
+      ],
+      "acceptance": [
+        "必需文件齐全",
+        "可按说明复现",
+        "版本对应已验收快照"
+      ],
+      "required_test_ids": [
+        "TC-DELIVERY-01"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B01 SpecPlannerAgent"
+    }
+  ],
+  "topological_order": [
+    "T01",
+    "T02",
+    "T03",
+    "T04",
+    "T05",
+    "T06",
+    "T07",
+    "T08",
+    "T09",
+    "T10",
+    "T11",
+    "T12",
+    "T13",
+    "T14",
+    "T15",
+    "T16",
+    "T17",
+    "T18",
+    "T19",
+    "T20",
+    "T21",
+    "T22",
+    "T23",
+    "T24"
+  ],
+  "input_snapshot": {
+    "spec_source": "inline",
+    "spec_format": "json",
+    "spec_sha256": "e86bfb16982a6138f70fe17b1d364a5cf25affbe3f9450afacc813aec484bcc5",
+    "contract_sha256": "2708709294dbef9a6aa1998e5802005ee945d3cfbae87af2cf2040783da45d18",
+    "spec_version": "S1-v1.0",
+    "contract_version": "C1-v1.0",
+    "requirement_count": 5,
+    "design_entry_count": 6,
+    "contract_operation_count": 11,
+    "schema_version": "b01.spec.v1"
+  }
+}
