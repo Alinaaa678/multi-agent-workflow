@@ -46,6 +46,63 @@
 4. 复用通用 Agent 协议、编排规则和质量门运行完整 Workflow。
 5. 将领域结果与通用过程证据分开保存，避免污染核心模型。
 
+## 快速开始
+
+环境要求：Python 3.12+、Node.js 22+ 和 npm。
+
+各工作块可以独立验证：
+
+```powershell
+# B01 规格规划
+cd b01-spec-planner
+python -m pip install -e ".[test]"
+python run_checks.py all --allow-reference
+python -m pytest -q
+
+# B02 讨论控制器
+cd ..\b02-workflow-agent
+python -m unittest discover -s tests -v
+
+# B03 黑板
+cd ..\b03\b03_implementation
+python -m pytest -q
+
+# B04 Agent 接入与受控执行
+cd ..\..\b04-agent-integration
+python -m pip install -e ".[test]"
+python -m pytest -q
+
+# B05 前端
+cd ..\..\frontend
+npm ci
+npm run build
+npm run lint
+
+# B06 质量验收
+cd ..\b06-quality-consensus
+python -m pytest -q
+python -m tests.smoke
+```
+
+## 运行项目原型
+
+先启动 B02 后端：
+
+```powershell
+cd b02-workflow-agent
+python -m backend.app
+```
+
+再打开另一个终端启动 B05 前端：
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+浏览器打开 Vite 输出的本地地址即可查看任务图和流程状态。当前前端使用 mock 数据和控制接口适配层；接入真实后端时，按 B02 的 WebSocket/API 说明配置地址。
+
 ## 文档
 
 - [项目总览](docs/PROJECT_OVERVIEW.md)
