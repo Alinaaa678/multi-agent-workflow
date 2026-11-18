@@ -159,6 +159,14 @@ class DynamicPlannerTests(unittest.TestCase):
         self.assertEqual(next_plan_version("PLAN-x-v1.9", "x"), "PLAN-x-v2.0")
         self.assertEqual(next_plan_version(None, "x"), "PLAN-x-v1.0")
 
+    def test_unicode_project_id_generates_ascii_plan_version(self):
+        raw = json.loads(CAMPUS_JSON.read_text(encoding="utf-8"))
+        raw["project_id"] = "校园失物招领"
+        spec = normalize_spec(raw, source_format="json")
+        plan = build_plan_from_spec(spec)
+        self.assertRegex(plan["plan_version"], r"^PLAN-[A-Za-z0-9._-]+-v[0-9]+\.[0-9]+$")
+        self.assertTrue(validate_plan(plan).ok)
+
     def test_changed_spec_yields_new_version_and_hash(self):
         changed = load_spec_from_text(
             json.dumps({**json.loads(CAMPUS_JSON.read_text(encoding="utf-8")), "title": "改名后的系统"}),

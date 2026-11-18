@@ -37,7 +37,8 @@ class PhaseBridgeTests(unittest.TestCase):
         spec = r1_to_design_spec(run)
 
         self.assertEqual("b01.spec.v1", spec["schema_version"])
-        self.assertIn("通用协作系统", spec["project_id"])
+        self.assertRegex(spec["project_id"], r"^project-[0-9a-f]{8}$")
+        self.assertEqual("制作一个通用协作系统", spec["title"])
         self.assertEqual(run["run_id"], spec["phase1_source"]["run_id"])
         self.assertEqual("R1", spec["phase1_source"]["r1_version"])
         self.assertEqual(len(run["blackboard"]["r1"]["requirements"]), len(spec["requirements"]))

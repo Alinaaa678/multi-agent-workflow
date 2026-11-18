@@ -138,6 +138,7 @@ class TaskApiTests(unittest.TestCase):
         self.assertEqual(status, 201)
         self.assertEqual("TASK-RUN-FROM-R1", phase_two["run"]["run_id"])
         self.assertEqual(discussion["run_id"], phase_two["source"]["phase1_source"]["run_id"])
+        self.assertRegex(phase_two["plan"]["plan_version"], r"^PLAN-[A-Za-z0-9._-]+-v[0-9]+\.[0-9]+$")
 
     def test_get_unknown_plan_is_404(self):
         self.assertEqual(self.call("GET", "/api/task-plans/PLAN-missing-v1.0")[0], 404)

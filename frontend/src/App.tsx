@@ -3,7 +3,7 @@ import { loadSimulationRun, listSimulationRuns, type SimulationRun } from './dat
 import { TaskDetailPanel } from './components/TaskDetailPanel';
 import { TaskGraph } from './components/TaskGraph';
 import { ALL_STATUSES, statusColors, statusLabels } from './constants/status';
-import { createTaskRunFromSpec } from './api/taskRunApi';
+import { createTaskRunFromSpec, type RunEvent } from './api/taskRunApi';
 import { useTaskRun } from './hooks/useTaskRun';
 import type { DataSource, Task } from './types/task';
 import {
@@ -14,9 +14,26 @@ import {
   type ExportContext,
 } from './utils/export';
 import './App.css';
+import type { AckEntry, LogEntry } from './hooks/useTaskWebSocket';
 
 /** 真实接口默认地址：B02 任务编排服务。 */
 const DEFAULT_API_BASE = 'http://127.0.0.1:7100';
+
+type ReportEvent = Pick<RunEvent, 'sequence' | 'type' | 'task_id' | 'occurred_at'> & { event_id?: string };
+
+function eventLogs(events: ReportEvent[]): LogEntry[] {
+  return events.map((event) => ({
+    id: event.event_id || `event-${event.sequence}`,
+    level: event.type.includes('FAILED') || event.type.includes('BLOCKED')
+      ? 'error'
+      : event.type.includes('COMPLETED') || event.type.includes('ACCEPTED')
+        ? 'success'
+        : 'info',
+    message: `${event.type}${event.task_id ? ` · ${event.task_id}` : ''}`,
+    task_id: event.task_id ?? undefined,
+    timestamp: event.occurred_at,
+  }));
+}
 
 function StatCard({ label, value, color, bg }: { label: string; value: number | string; color: string; bg: string }) {
   return (
@@ -60,6 +77,8 @@ function App() {
     [isReal, real.meta, simulation],
   );
   const selectedTask = tasks.find((task) => task.task_id === selectedId) ?? null;
+  const reportLogs = eventLogs(isReal ? real.events : simulation?.events ?? []);
+  const reportAcks: AckEntry[] = [];
 
   const stats = useMemo(() => {
     const done = tasks.filter((task) => task.status === 'SUCCEEDED').length;
@@ -227,7 +246,7 @@ function App() {
               <button onClick={() => exportSnapshot(tasks, buildExportContext())}>快照 JSON</button>
               <button onClick={() => exportTraceability(tasks, buildExportContext())}>追溯表 CSV</button>
               <button onClick={() => exportDefects(tasks, buildExportContext())}>缺陷清单</button>
-              <button onClick={() => exportRunReport(tasks, [], [], buildExportContext())}>运行报告</button>
+              <button onClick={() => exportRunReport(tasks, reportLogs, reportAcks, buildExportContext())}>运行报告</button>
             </div>
           </div>
 

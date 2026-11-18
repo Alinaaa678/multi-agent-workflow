@@ -254,7 +254,7 @@ export async function fetchTaskRun(
   const [snapshotResponse, dagResponse, eventsResponse] = await Promise.all([
     fetchJson<{ run: RunSnapshot }>(`${base}/api/task-runs/${runId}`, signal),
     fetchJson<{ dag: DagPayload }>(`${base}/api/task-runs/${runId}/dag`, signal),
-    fetchJson<{ events: RunEvent[] }>(`${base}/api/task-runs/${runId}/events?limit=1000`, signal),
+    fetchJson<{ events: RunEvent[] }>(`${base}/api/task-runs/${runId}/events?limit=5000`, signal),
   ]);
   const run = snapshotResponse.run;
   if (!run || !Array.isArray(run.tasks)) {

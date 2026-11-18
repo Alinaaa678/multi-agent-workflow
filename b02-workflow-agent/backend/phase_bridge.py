@@ -8,6 +8,7 @@ design_entries，后续团队可以在 B01 前替换为更完整的设计规格�
 
 from __future__ import annotations
 
+import hashlib
 import re
 from typing import Any
 
@@ -15,9 +16,12 @@ from .errors import WorkflowError
 
 
 def _slug(value: str) -> str:
-    value = "".join(ch if ch.isalnum() else "-" for ch in value.strip().lower())
-    value = re.sub(r"-+", "-", value).strip("-")
-    return value or "project"
+    """生成符合 B01 计划版本契约的 ASCII 项目标识。"""
+    source = value.strip().lower()
+    ascii_part = "".join(ch if (ch.isascii() and ch.isalnum()) else "-" for ch in source)
+    slug = re.sub(r"-+", "-", ascii_part).strip("-")
+    digest = hashlib.sha256(source.encode("utf-8")).hexdigest()[:8]
+    return f"{slug}-{digest}" if slug else f"project-{digest}"
 
 
 def r1_to_design_spec(run: dict[str, Any]) -> dict[str, Any]:
