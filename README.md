@@ -164,6 +164,7 @@ python -m workflow_runtime pipeline --scenario evidence
 
 - [项目总览](docs/PROJECT_OVERVIEW.md)
 - [任务编排闭环契约](docs/TASK_ORCHESTRATION.md)
+- [第二阶段实施记录](docs/STAGE2_STATUS.md)
 - [GitHub 协作与分支流程](docs/BRANCHING.md)
 - [集成运行说明](docs/INTEGRATION.md)
 

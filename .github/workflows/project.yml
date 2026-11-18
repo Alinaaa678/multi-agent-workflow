@@ -18,6 +18,7 @@ jobs:
           test -f docs/PROJECT_OVERVIEW.md
           test -f docs/BRANCHING.md
           test -f docs/TASK_ORCHESTRATION.md
+          test -f docs/STAGE2_STATUS.md
           test -f workflow_runtime/bootstrap.py
           test -f workflow_runtime/verify_contracts.py
           test -f b01-spec-planner/src/b01/spec_input.py
