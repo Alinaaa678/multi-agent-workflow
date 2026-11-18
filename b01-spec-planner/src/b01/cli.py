@@ -19,6 +19,7 @@ from typing import Any
 from .baseline import BaselineError, register_baseline
 from .design import C1_CONTRACT, DESIGN_ENTRIES, R1, S1
 from .dynamic_planner import build_plan_from_spec, build_traceability as build_dynamic_traceability
+from .dynamic_planner import spec_input_snapshot
 from .plan_validator import validate_plan, validate_traceability
 from .spec_input import SpecError, load_spec
 from .task_planner import build_plan, build_traceability
@@ -61,23 +62,43 @@ def cmd_plan(args: argparse.Namespace) -> int:
     except SpecError as error:
         print(f"规格载入失败：{error}", file=sys.stderr)
         return 2
-    previous = None
-    previous_path = Path(args.previous_plan) if args.previous_plan else DOCS / "plan.json"
+    out_dir = Path(args.out_dir) if args.out_dir else DOCS
+    plan_path = out_dir / args.plan_name
+    # 入库 fixture 必须可复现：同一规格 + 同一版本时沿用既有的 generated_at，
+    # 否则每次生成都会产生仅时间戳不同的无意义 diff；
+    # 只有输入快照变化（规格真的改了）才写入新的时间戳。
+    previous_plan: dict[str, Any] | None = None
+    previous_path = Path(args.previous_plan) if args.previous_plan else plan_path
     if previous_path.is_file():
         try:
-            previous = json.loads(previous_path.read_text(encoding="utf-8")).get("plan_version")
+            loaded = json.loads(previous_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                previous_plan = loaded
         except json.JSONDecodeError:
-            previous = None
-    plan = build_plan_from_spec(spec, plan_version=args.plan_version, previous_plan_version=previous)
+            previous_plan = None
+
+    snapshot = spec_input_snapshot(spec)
+    unchanged = bool(
+        previous_plan
+        and (previous_plan.get("input_snapshot") or {}).get("spec_sha256") == snapshot["spec_sha256"]
+        and previous_plan.get("generated_at")
+    )
+    # 规格没变 → 沿用原版本号与时间戳，保证 fixture 可逐字节复现；
+    # 规格变了 → 版本递增并写入新时间戳。
+    plan = build_plan_from_spec(
+        spec,
+        plan_version=(previous_plan or {}).get("plan_version") if unchanged else args.plan_version,
+        previous_plan_version=None if unchanged else (previous_plan or {}).get("plan_version"),
+        generated_at=(previous_plan or {}).get("generated_at") if unchanged else None,
+    )
     traceability = build_dynamic_traceability(plan, spec)
-    out_dir = Path(args.out_dir) if args.out_dir else DOCS
-    plan_path = _write_json(args.plan_name, plan, directory=out_dir)
+    plan_file = _write_json(args.plan_name, plan, directory=out_dir)
     trace_path = _write_json(args.traceability_name, traceability, directory=out_dir)
     report = validate_plan(plan)
     trace_report = validate_traceability(plan, traceability)
     print(f"spec {spec.source_format} project={spec.project_id} requirements={len(spec.requirements)} "
           f"design_entries={len(spec.design_entries)}")
-    print(f"plan {plan['plan_version']} tasks={len(plan['tasks'])} -> {plan_path}")
+    print(f"plan {plan['plan_version']} tasks={len(plan['tasks'])} -> {plan_file}")
     print(f"traceability -> {trace_path}")
     print(f"validate ok={report.ok} traceability ok={trace_report.ok}")
     for reason in report.reasons + trace_report.reasons:

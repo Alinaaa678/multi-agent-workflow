@@ -394,8 +394,13 @@ def build_plan_from_spec(
     plan_version: str | None = None,
     previous_plan_version: str | None = None,
     generated_by: str = "B01 SpecPlannerAgent dynamic planner",
+    generated_at: str | None = None,
 ) -> dict[str, Any]:
-    """生成符合 docs/TASK_ORCHESTRATION.md §2 的计划文档。"""
+    """生成符合 docs/TASK_ORCHESTRATION.md §2 的计划文档。
+
+    `generated_at` 可显式传入，使**同一规格 + 同一版本**的计划可逐字节复现；
+    CLI 生成入库 fixture 时应带上它，避免每次运行都产生仅时间戳不同的 diff。
+    """
     tasks = build_tasks_from_spec(spec)
     order = topological_sort(tasks)
     version = plan_version or next_plan_version(previous_plan_version, spec.project_id)
@@ -407,7 +412,7 @@ def build_plan_from_spec(
         "contract_version": spec.contract_version,
         "plan_version": version,
         "generated_by": generated_by,
-        "generated_at": _now(),
+        "generated_at": generated_at or _now(),
         "required_requirements": spec.requirement_ids(),
         "tasks": copy.deepcopy(tasks),
         "topological_order": order,

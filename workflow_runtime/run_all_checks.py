@@ -18,13 +18,14 @@ REPO = Path(__file__).resolve().parent.parent
 STEPS = [
     ("B01 生成/校验/基线", REPO / "b01-spec-planner", ["python", "run_checks.py", "all", "--allow-reference"]),
     ("B01 单元测试", REPO / "b01-spec-planner", ["python", "-m", "pytest", "-q"]),
+    # 注意：不要传 --previous-plan 指向不存在的文件，否则会把已入库的 fixture
+    # 当成“新区划”而递增 plan_version，导致每次跑检查都产生无意义 diff。
     ("B01 动态计划", REPO / "b01-spec-planner", [
         "python", "run_checks.py", "plan",
         "--spec", "docs/fixtures/campus-lost-found.spec.json",
         "--out-dir", "docs/fixtures",
         "--plan-name", "campus-lost-found.plan.json",
         "--traceability-name", "campus-lost-found.traceability.json",
-        "--previous-plan", "docs/fixtures/__none__.json",
     ]),
     ("B02 单元测试", REPO / "b02-workflow-agent", ["python", "-m", "unittest", "discover", "-s", "tests"]),
     ("B03 单元测试", REPO, ["python", "-m", "pytest", "b03/b03_implementation", "-q"]),
