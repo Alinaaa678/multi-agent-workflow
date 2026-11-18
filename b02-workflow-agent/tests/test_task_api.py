@@ -101,6 +101,44 @@ class TaskApiTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertIn("环", body["error"])
 
+    def test_design_spec_creates_plan_and_run(self):
+        relative = (REPO / "b01-spec-planner" / "docs" / "fixtures" / "lab-equipment-loan.spec.md").relative_to(REPO).as_posix()
+        status, body = self.call(
+            "POST",
+            "/api/task-runs/from-spec",
+            {"spec_path": relative, "run_id": "TASK-RUN-SPEC-INPUT"},
+        )
+        self.assertEqual(status, 201)
+        self.assertGreater(body["plan"]["task_count"], 0)
+        self.assertEqual("TASK-RUN-SPEC-INPUT", body["run"]["run_id"])
+        self.assertEqual(body["plan"]["plan_id"], body["run"]["plan_id"])
+        status, second = self.call(
+            "POST",
+            "/api/task-runs/from-spec",
+            {"spec_path": relative, "run_id": "TASK-RUN-SPEC-INPUT-2"},
+        )
+        self.assertEqual(status, 201)
+        self.assertEqual(body["plan"]["plan_id"], second["plan"]["plan_id"])
+
+    def test_phase_one_r1_can_create_phase_two_run(self):
+        discussion = RequestHandler.service.controller.create_run("制作一个通用协作系统")
+        discussion = RequestHandler.service.controller.run_until_control_point(discussion["run_id"])
+        RequestHandler.service.controller.confirm_requirements(discussion["run_id"], [
+            "成员 A", "成员 B", "成员 C", "成员 D", "成员 E", "成员 F",
+        ])
+        status, body = self.call("GET", f"/api/runs/{discussion['run_id']}/design-spec")
+        self.assertEqual(status, 200)
+        self.assertEqual(discussion["run_id"], body["design_spec"]["phase1_source"]["run_id"])
+
+        status, phase_two = self.call(
+            "POST",
+            "/api/task-runs/from-discussion",
+            {"discussion_run_id": discussion["run_id"], "run_id": "TASK-RUN-FROM-R1"},
+        )
+        self.assertEqual(status, 201)
+        self.assertEqual("TASK-RUN-FROM-R1", phase_two["run"]["run_id"])
+        self.assertEqual(discussion["run_id"], phase_two["source"]["phase1_source"]["run_id"])
+
     def test_get_unknown_plan_is_404(self):
         self.assertEqual(self.call("GET", "/api/task-plans/PLAN-missing-v1.0")[0], 404)
 

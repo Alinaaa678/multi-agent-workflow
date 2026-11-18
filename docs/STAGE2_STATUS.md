@@ -12,6 +12,11 @@
 
 全链路已打通并可一键复现，见 `workflow_runtime/pipeline.py`。
 
+与第一阶段的连接也已补齐：已确认的 B02 R1 可通过 `/api/runs/{run_id}/design-spec`
+导出为 B01 设计规格，或通过 `/api/task-runs/from-discussion` 直接创建第二阶段运行。
+第二阶段还支持直接提交任意 JSON/Markdown design spec；B05 页面提供生成运行、单步推进和
+运行至完成控制。
+
 | 任务 | 内容 | 实现位置 | 状态 |
 | --- | --- | --- | --- |
 | B01-D12 | 通用规格输入（JSON/Markdown） | `b01/spec_input.py` | 完成 |

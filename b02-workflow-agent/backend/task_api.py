@@ -27,7 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def _ensure_blocks_on_path() -> None:
     """允许在未安装包时从仓库根目录直接运行。"""
-    for relative in ("b03", "b04-agent-integration/src", "b06-quality-consensus"):
+    for relative in ("b01-spec-planner/src", "b03", "b04-agent-integration/src", "b06-quality-consensus"):
         path = REPO_ROOT / relative
         if path.is_dir() and str(path) not in sys.path:
             sys.path.insert(0, str(path))
@@ -129,6 +129,70 @@ class TaskApi:
         if run_id is not None and not isinstance(run_id, str):
             raise WorkflowError("run_id 必须是字符串。", 400)
         return {"run": self.orchestrator.create_run(plan_id, run_id=run_id)}
+
+    def create_run_from_spec(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """设计规格 → B01 计划 → B02 运行，作为阶段二统一入口。"""
+        _ensure_blocks_on_path()
+        try:
+            from b01.spec_input import load_spec, load_spec_from_text, normalize_spec  # type: ignore[import-not-found]
+            from b01.dynamic_planner import build_plan_from_spec, next_plan_version  # type: ignore[import-not-found]
+        except ModuleNotFoundError as error:
+            raise WorkflowError(f"B01 规格规划器不可用: {error}", 500) from error
+
+        spec_path = payload.get("spec_path")
+        spec_text = payload.get("spec_text")
+        raw_spec = payload.get("spec")
+        try:
+            if spec_path:
+                path = Path(str(spec_path))
+                if not path.is_absolute():
+                    path = REPO_ROOT / path
+                if not path.is_file():
+                    raise WorkflowError(f"设计规格文件不存在: {spec_path}", 400)
+                spec = load_spec(path)
+            elif isinstance(spec_text, str) and spec_text.strip():
+                spec = load_spec_from_text(spec_text)
+            elif isinstance(raw_spec, dict):
+                spec = normalize_spec(raw_spec, source_format="json")
+            else:
+                raise WorkflowError("请求必须包含 spec_path、spec_text 或 spec。", 400)
+        except WorkflowError:
+            raise
+        except (TypeError, ValueError) as error:
+            raise WorkflowError(f"设计规格无效: {error}", 400) from error
+
+        plan = build_plan_from_spec(spec)
+        if isinstance(payload.get("source_metadata"), dict):
+            plan["phase1_source"] = dict(payload["source_metadata"])
+        # 同一规格重复点击“从设计规格启动”时复用已有版本；规格真的变化时递增版本。
+        existing = self.store.find_plan_by_version(plan["plan_version"])
+        if existing is not None:
+            existing_document = self.store.get_plan_document(existing["plan_id"])
+            existing_snapshot = (existing_document or {}).get("input_snapshot") or {}
+            if existing_snapshot.get("spec_sha256") == plan["input_snapshot"].get("spec_sha256"):
+                plan = existing_document or plan
+                stored = existing
+            else:
+                plan["plan_version"] = next_plan_version(plan["plan_version"], spec.project_id)
+                stored = self.orchestrator.load_plan(plan)
+        else:
+            stored = self.orchestrator.load_plan(plan)
+        run = self.orchestrator.create_run(stored["plan_id"], run_id=payload.get("run_id"))
+        if payload.get("auto_run"):
+            raw_steps = payload.get("max_steps", len(plan["tasks"]) * 3 + 20)
+            try:
+                max_steps = int(raw_steps)
+            except (TypeError, ValueError) as error:
+                raise WorkflowError("max_steps 必须是整数。", 400) from error
+            run = self.orchestrator.run(run["run_id"], max_steps=max_steps)
+        source_document = spec.as_dict()
+        if isinstance(payload.get("source_metadata"), dict):
+            source_document["phase1_source"] = dict(payload["source_metadata"])
+        return {
+            "plan": {**stored, "task_count": len(plan["tasks"])},
+            "run": run,
+            "source": source_document,
+        }
 
     def list_runs(self) -> dict[str, Any]:
         return {"runs": self.store.list_runs()}

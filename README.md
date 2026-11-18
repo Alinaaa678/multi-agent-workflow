@@ -20,6 +20,20 @@
 通用项目输入 → 需求与设计基线 → 任务图（DAG）→ Agent 产物 → 独立验收 → 集成发布
 ```
 
+## 两阶段通用 SE Workflow
+
+项目按两个相互衔接的阶段运行：
+
+```text
+第一阶段：用户想法 → 多智能体讨论 → 建设方案 → R1 需求确认
+                                      ↓ 设计规格/追溯来源
+第二阶段：设计规格 → PM Agent 任务分解 → 编排器 → 执行/质量门 → DAG 展示与控制
+```
+
+第一阶段形成的 R1 经过确认后，可以通过 B02 阶段桥接接口生成 B01 可消费的最小设计规格；
+团队也可以直接提供更完整的 JSON/Markdown design spec。第二阶段的任务数量、依赖和验收条件
+由规格动态推导，校园失物招领只是演示 fixture。
+
 ## 第二阶段闭环（已完成）
 
 ```text
@@ -141,6 +155,9 @@ npm run dev
   `GET /api/task-runs/{run_id}` 与 `/dag`。连接失败时显示错误且**不会**
   把模拟数据当作真实数据展示。
 
+前端的“第二阶段入口：设计规格 → PM Agent → 编排器”可以直接填写规格路径，点击“从设计规格启动”
+创建真实任务运行；随后可用“推进一步”观察依赖调度，或用“运行至完成”执行完整闭环。
+
 ## 一键闭环演示
 
 ```powershell
@@ -159,6 +176,12 @@ python -m workflow_runtime pipeline --scenario evidence
 
 每个场景都会输出计划版本、运行状态、完成数、DAG 规模、检查点序号、
 事件回放一致性与失败任务明细。
+
+也可以直接指定任意设计规格：
+
+```powershell
+python -m workflow_runtime pipeline --spec b01-spec-planner/docs/fixtures/lab-equipment-loan.spec.md
+```
 
 ## 文档
 
