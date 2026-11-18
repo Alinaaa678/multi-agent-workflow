@@ -76,6 +76,13 @@ export interface TaskApiConfig {
   runId: string;
 }
 
+export interface CreateRunFromSpecConfig {
+  baseUrl: string;
+  specPath?: string;
+  specText?: string;
+  discussionRunId?: string;
+}
+
 export interface TaskApiResult {
   tasks: Task[];
   meta: {
@@ -193,6 +200,50 @@ async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    let detail = `${response.status} ${response.statusText}`;
+    try {
+      const raw = (await response.json()) as { error?: string };
+      if (raw?.error) detail = raw.error;
+    } catch {
+      // 非 JSON 错误体：保留状态码描述
+    }
+    throw new Error(detail);
+  }
+  return (await response.json()) as T;
+}
+
+export async function createTaskRunFromSpec(config: CreateRunFromSpecConfig): Promise<{
+  plan: { plan_id: string; plan_version: string; task_count: number };
+  run: RunSnapshot;
+}> {
+  const base = config.baseUrl.replace(/\/+$/, '');
+  const body: Record<string, string> = {};
+  if (config.specPath?.trim()) body.spec_path = config.specPath.trim();
+  if (config.specText?.trim()) body.spec_text = config.specText;
+  if (config.discussionRunId?.trim()) body.discussion_run_id = config.discussionRunId.trim();
+  const endpoint = config.discussionRunId?.trim()
+    ? '/api/task-runs/from-discussion'
+    : '/api/task-runs/from-spec';
+  return postJson(`${base}${endpoint}`, body);
+}
+
+export async function controlTaskRun(
+  config: TaskApiConfig,
+  action: 'step' | 'run',
+  maxSteps = 200,
+): Promise<void> {
+  const base = config.baseUrl.replace(/\/+$/, '');
+  const runId = encodeURIComponent(config.runId);
+  await postJson(`${base}/api/task-runs/${runId}/${action}`, action === 'run' ? { max_steps: maxSteps } : {});
+}
+
 /** 拉取一个任务运行的真实快照 + DAG + 事件。 */
 export async function fetchTaskRun(
   config: TaskApiConfig,
@@ -203,7 +254,7 @@ export async function fetchTaskRun(
   const [snapshotResponse, dagResponse, eventsResponse] = await Promise.all([
     fetchJson<{ run: RunSnapshot }>(`${base}/api/task-runs/${runId}`, signal),
     fetchJson<{ dag: DagPayload }>(`${base}/api/task-runs/${runId}/dag`, signal),
-    fetchJson<{ events: RunEvent[] }>(`${base}/api/task-runs/${runId}/events?limit=1000`, signal),
+    fetchJson<{ events: RunEvent[] }>(`${base}/api/task-runs/${runId}/events?limit=5000`, signal),
   ]);
   const run = snapshotResponse.run;
   if (!run || !Array.isArray(run.tasks)) {

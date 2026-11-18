@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchTaskRun, type RunEvent, type TaskApiResult } from '../api/taskRunApi';
+import { controlTaskRun, fetchTaskRun, type RunEvent, type TaskApiResult } from '../api/taskRunApi';
 import type { Task } from '../types/task';
 
 export interface UseTaskRunOptions {
@@ -28,6 +28,8 @@ export interface TaskRunState {
   error: string | null;
   lastUpdated: string | null;
   reload: () => void;
+  step: () => Promise<void>;
+  runToCompletion: (maxSteps?: number) => Promise<void>;
 }
 
 export function useTaskRun(options: UseTaskRunOptions): TaskRunState {
@@ -43,6 +45,23 @@ export function useTaskRun(options: UseTaskRunOptions): TaskRunState {
   const [tick, setTick] = useState(0);
 
   const reload = useCallback(() => setTick((value) => value + 1), []);
+
+  const control = useCallback(async (action: 'step' | 'run', maxSteps = 200) => {
+    if (!enabled || !baseUrl || !runId) return;
+    setLoading(true);
+    try {
+      await controlTaskRun({ baseUrl, runId }, action, maxSteps);
+      setError(null);
+      reload();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setLoading(false);
+    }
+  }, [baseUrl, enabled, reload, runId]);
+
+  const step = useCallback(() => control('step'), [control]);
+  const runToCompletion = useCallback((maxSteps = 200) => control('run', maxSteps), [control]);
 
   useEffect(() => {
     if (!enabled || !baseUrl || !runId) return undefined;
@@ -90,5 +109,5 @@ export function useTaskRun(options: UseTaskRunOptions): TaskRunState {
     };
   }, [baseUrl, runId, pollIntervalMs, enabled, tick]);
 
-  return { tasks, meta, events, dag, loading, error, lastUpdated, reload };
+  return { tasks, meta, events, dag, loading, error, lastUpdated, reload, step, runToCompletion };
 }

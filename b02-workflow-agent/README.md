@@ -17,6 +17,8 @@
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | `/api/task-plans/load` | 载入并校验计划（`{"plan": {...}}` 或 `{"plan_path": "..."}`） |
+| POST | `/api/task-runs/from-spec` | 设计规格经 B01 动态分解后创建任务运行 |
+| POST | `/api/task-runs/from-discussion` | 已确认 R1 经阶段桥接后创建任务运行 |
 | GET | `/api/task-plans` | 已载入计划列表 |
 | GET | `/api/task-plans/{plan_id}` | 计划详情 |
 | POST | `/api/task-runs` | 由计划创建运行 |
@@ -28,6 +30,10 @@
 | GET | `/api/task-runs/{run_id}/dag` | DAG 视图（节点 + 边） |
 | POST | `/api/task-runs/{run_id}/replay` | 事件回放并与快照比对 |
 | GET | `/api/task-runs/{run_id}/restore` | 断点恢复视图 |
+
+第一阶段讨论运行在 `COMPLETED` 且已发布 R1 后，可通过
+`GET /api/runs/{run_id}/design-spec` 查看 B01 可消费的设计规格。阶段二也可以直接使用
+JSON/Markdown 设计规格，不依赖校园案例。
 
 示例（B02 启动后）：
 

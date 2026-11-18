@@ -62,6 +62,38 @@
 .app-main { display: flex; flex: 1; overflow: hidden; }
 .app-content { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 
+.spec-launch-bar {
+  padding: 10px 20px;
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.spec-launch-bar > div { display: flex; flex-direction: column; gap: 2px; margin-right: auto; }
+.spec-launch-bar strong { color: #1e3a8a; }
+.spec-launch-bar span { color: #475569; }
+.spec-launch-bar input {
+  min-width: 330px;
+  padding: 7px 9px;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+.spec-launch-bar button {
+  padding: 7px 10px;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+.spec-launch-bar button:disabled { opacity: .5; cursor: not-allowed; }
+
 /* ---------- Toolbar ---------- */
 .toolbar {
   padding: 12px 20px;

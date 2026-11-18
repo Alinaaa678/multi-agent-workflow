@@ -13,6 +13,7 @@ from .adapters import MEMBERS
 from .controller import DiscussionController
 from .errors import WorkflowError
 from .exporter import export_run
+from .phase_bridge import r1_to_design_spec
 from .store import BlackboardStore
 from .task_api import TaskApi
 from .websocket import WorkflowEventHub, WebSocketClient, serve_websocket, websocket_accept
@@ -111,6 +112,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return
             if len(parts) == 3 and parts[:2] == ["api", "runs"]:
                 self._json({"run": service.controller.get(parts[2])})
+                return
+            if len(parts) == 4 and parts[:2] == ["api", "runs"] and parts[3] == "design-spec":
+                run = service.controller.get(parts[2])
+                self._json({"design_spec": r1_to_design_spec(run), "source_run_id": parts[2]})
                 return
             if len(parts) == 4 and parts[:2] == ["api", "runs"] and parts[3] == "replay":
                 self._json({"replay": service.controller.replay(parts[2])})
@@ -220,6 +225,18 @@ class RequestHandler(BaseHTTPRequestHandler):
             return True
         if path == "/api/task-runs":
             self._json(api.create_run(payload), 201)
+            return True
+        if path == "/api/task-runs/from-spec":
+            self._json(api.create_run_from_spec(payload), 201)
+            return True
+        if path == "/api/task-runs/from-discussion":
+            run = self.service.controller.get(str(payload.get("discussion_run_id") or ""))
+            spec = r1_to_design_spec(run)
+            self._json(api.create_run_from_spec({
+                **payload,
+                "spec": spec,
+                "source_metadata": spec.get("phase1_source"),
+            }), 201)
             return True
         if len(parts) == 3 and parts[:2] == ["api", "task-plans"]:
             return False

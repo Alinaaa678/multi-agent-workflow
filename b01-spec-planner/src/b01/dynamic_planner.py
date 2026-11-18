@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import hashlib
 import heapq
 import json
 from datetime import datetime, timezone
@@ -114,8 +115,20 @@ def _capability_for_module(module: str) -> str:
 
 
 def _slug(text: str) -> str:
-    cleaned = "".join(ch if ch.isalnum() else "-" for ch in text)
+    """生成用于领域路径和产物名称的 slug，保留 Unicode 领域名称。"""
+    cleaned = "".join(ch if ch.isalnum() else "-" for ch in str(text or ""))
     return "-".join(part for part in cleaned.split("-") if part).lower() or "item"
+
+
+def _project_slug(text: str) -> str:
+    """生成符合计划版本契约的 ASCII 项目标识。"""
+    source = str(text or "").strip()
+    ascii_part = "".join(ch if (ch.isascii() and ch.isalnum()) else "-" for ch in source)
+    slug = "-".join(part for part in ascii_part.split("-") if part).lower()
+    if source.isascii() and slug:
+        return slug
+    digest = hashlib.sha256(source.encode("utf-8")).hexdigest()[:8]
+    return f"{slug}-{digest}" if slug else f"project-{digest}"
 
 
 def _task(
@@ -354,17 +367,17 @@ def build_tasks_from_spec(spec: SpecDocument) -> list[dict[str, Any]]:
 def next_plan_version(previous: str | None, project_id: str) -> str:
     """基于上一版本递增；无上一版本时从 v1.0 开始。"""
     if not previous:
-        return f"PLAN-{_slug(project_id)}-v1.0"
+        return f"PLAN-{_project_slug(project_id)}-v1.0"
     marker = "-v"
     if marker not in previous:
-        return f"PLAN-{_slug(project_id)}-v1.0"
+        return f"PLAN-{_project_slug(project_id)}-v1.0"
     head, _, tail = previous.rpartition(marker)
     major_text, _, minor_text = tail.partition(".")
     try:
         major = int(major_text)
         minor = int(minor_text or 0)
     except ValueError:
-        return f"PLAN-{_slug(project_id)}-v1.0"
+        return f"PLAN-{_project_slug(project_id)}-v1.0"
     minor += 1
     if minor >= 10:
         major += 1

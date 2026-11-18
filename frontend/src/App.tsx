@@ -3,6 +3,7 @@ import { loadSimulationRun, listSimulationRuns, type SimulationRun } from './dat
 import { TaskDetailPanel } from './components/TaskDetailPanel';
 import { TaskGraph } from './components/TaskGraph';
 import { ALL_STATUSES, statusColors, statusLabels } from './constants/status';
+import { createTaskRunFromSpec, type RunEvent } from './api/taskRunApi';
 import { useTaskRun } from './hooks/useTaskRun';
 import type { DataSource, Task } from './types/task';
 import {
@@ -13,9 +14,26 @@ import {
   type ExportContext,
 } from './utils/export';
 import './App.css';
+import type { AckEntry, LogEntry } from './hooks/useTaskWebSocket';
 
 /** 真实接口默认地址：B02 任务编排服务。 */
 const DEFAULT_API_BASE = 'http://127.0.0.1:7100';
+
+type ReportEvent = Pick<RunEvent, 'sequence' | 'type' | 'task_id' | 'occurred_at'> & { event_id?: string };
+
+function eventLogs(events: ReportEvent[]): LogEntry[] {
+  return events.map((event) => ({
+    id: event.event_id || `event-${event.sequence}`,
+    level: event.type.includes('FAILED') || event.type.includes('BLOCKED')
+      ? 'error'
+      : event.type.includes('COMPLETED') || event.type.includes('ACCEPTED')
+        ? 'success'
+        : 'info',
+    message: `${event.type}${event.task_id ? ` · ${event.task_id}` : ''}`,
+    task_id: event.task_id ?? undefined,
+    timestamp: event.occurred_at,
+  }));
+}
 
 function StatCard({ label, value, color, bg }: { label: string; value: number | string; color: string; bg: string }) {
   return (
@@ -40,6 +58,8 @@ function App() {
   const [apiBase, setApiBase] = useState(DEFAULT_API_BASE);
   const [runIdInput, setRunIdInput] = useState('TASK-RUN-DEMO');
   const [submittedRunId, setSubmittedRunId] = useState('');
+  const [specPath, setSpecPath] = useState('b01-spec-planner/docs/fixtures/campus-lost-found.spec.json');
+  const [launching, setLaunching] = useState(false);
   const isReal = source === 'real';
   const real = useTaskRun({
     baseUrl: apiBase,
@@ -57,6 +77,8 @@ function App() {
     [isReal, real.meta, simulation],
   );
   const selectedTask = tasks.find((task) => task.task_id === selectedId) ?? null;
+  const reportLogs = eventLogs(isReal ? real.events : simulation?.events ?? []);
+  const reportAcks: AckEntry[] = [];
 
   const stats = useMemo(() => {
     const done = tasks.filter((task) => task.status === 'SUCCEEDED').length;
@@ -84,6 +106,21 @@ function App() {
     setSource('real');
     setSelectedId(null);
   }, [runIdInput]);
+
+  const handleCreateFromSpec = useCallback(async () => {
+    setLaunching(true);
+    try {
+      const created = await createTaskRunFromSpec({ baseUrl: apiBase, specPath });
+      setRunIdInput(created.run.run_id);
+      setSubmittedRunId(created.run.run_id);
+      setSource('real');
+      setSelectedId(null);
+    } catch (caught) {
+      window.alert(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setLaunching(false);
+    }
+  }, [apiBase, specPath]);
 
   // 导出上下文在“点击导出时”构造：时间戳必须反映真实导出时刻，
   // 不能在渲染期求值（否则每次重渲染都会变，且违反 React 纯函数约束）。
@@ -167,6 +204,27 @@ function App() {
 
       <div className="app-main">
         <div className="app-content">
+          <div className="spec-launch-bar">
+            <div>
+              <strong>第二阶段入口：设计规格 → PM Agent → 编排器</strong>
+              <span>输入规格路径后创建真实任务运行，可逐步执行或运行至完成。</span>
+            </div>
+            <input
+              aria-label="设计规格路径"
+              value={specPath}
+              onChange={(event) => setSpecPath(event.target.value)}
+              placeholder="b01-spec-planner/docs/fixtures/your.spec.json"
+            />
+            <button onClick={handleCreateFromSpec} disabled={launching || !specPath.trim()}>
+              {launching ? '正在生成计划…' : '从设计规格启动'}
+            </button>
+            <button onClick={() => void real.step()} disabled={!isReal || !submittedRunId || real.loading}>
+              推进一步
+            </button>
+            <button onClick={() => void real.runToCompletion()} disabled={!isReal || !submittedRunId || real.loading}>
+              运行至完成
+            </button>
+          </div>
           <div className="toolbar">
             <div className="stats">
               <StatCard label="已通过" value={stats.done} color="#15803d" bg="#f0fdf4" />
@@ -188,7 +246,7 @@ function App() {
               <button onClick={() => exportSnapshot(tasks, buildExportContext())}>快照 JSON</button>
               <button onClick={() => exportTraceability(tasks, buildExportContext())}>追溯表 CSV</button>
               <button onClick={() => exportDefects(tasks, buildExportContext())}>缺陷清单</button>
-              <button onClick={() => exportRunReport(tasks, [], [], buildExportContext())}>运行报告</button>
+              <button onClick={() => exportRunReport(tasks, reportLogs, reportAcks, buildExportContext())}>运行报告</button>
             </div>
           </div>
 

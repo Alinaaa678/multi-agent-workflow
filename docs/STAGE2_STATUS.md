@@ -12,6 +12,11 @@
 
 全链路已打通并可一键复现，见 `workflow_runtime/pipeline.py`。
 
+与第一阶段的连接也已补齐：已确认的 B02 R1 可通过 `/api/runs/{run_id}/design-spec`
+导出为 B01 设计规格，或通过 `/api/task-runs/from-discussion` 直接创建第二阶段运行。
+第二阶段还支持直接提交任意 JSON/Markdown design spec；B05 页面提供生成运行、单步推进和
+运行至完成控制。
+
 | 任务 | 内容 | 实现位置 | 状态 |
 | --- | --- | --- | --- |
 | B01-D12 | 通用规格输入（JSON/Markdown） | `b01/spec_input.py` | 完成 |
@@ -82,9 +87,9 @@ npm run build && npm run lint
 node tests/ui_smoke.mjs http://127.0.0.1:4321
 ```
 
-当前结果：B01 43 / B02 97 / B03 37 / B04 664（1 项 docker 跳过）/ B06 75 /
-闭环 13 项测试通过；`verify_contracts` 6/6；`run_all_checks` 14/14；
-前端 build + lint 零告警；无头浏览器冒烟 35 项通过。
+最近一次完整检查结果：B01 44 / B02 104 / B03 37 / B04 664（1 项 docker 跳过）/ B06 75 /
+闭环 13 项测试通过；`verify_contracts` 6/6；`run_all_checks` 15/15；
+前端 build + lint 通过；浏览器冒烟覆盖讨论流程、真实任务接口、响应式布局和错误隔离。
 
 ## 四、遗留项
 
@@ -98,9 +103,9 @@ node tests/ui_smoke.mjs http://127.0.0.1:4321
    `runner.run_suite` 的受控执行已具备并有测试，但管线的 mock 执行器不产生签名证据。
    接入真实 runner 时要让 B04 的测试结果走 B06 的受控 runner，才能形成真证据链。
 
-3. **B05 导出内容未接真实事件流**。导出按钮调用 `utils/export.ts`，
-   但「运行报告」传入的日志与回执参数在真实接口模式下仍为空数组，
-   需要把 `useTaskRun` 的 events 映射成 `LogEntry` 后再传入。
+3. **B05 控制回执仅在 WebSocket 控制链路中可见**。真实 HTTP 任务编排模式已经把
+   `useTaskRun` 的事件映射到运行报告的 `event_logs`；若要把“推进一步/运行至完成”的
+   HTTP 回执也写入报告，需要为控制 API 返回值增加前端回执记录。
 
 4. **开发依赖仍有 npm audit 提示**（上游模板依赖，生产依赖无漏洞）。
 

@@ -3,7 +3,18 @@
 本文是第二阶段（设计规格 → 任务分解 → 编排 → 持久化 → 执行 → 验收 → 可视化 → 发布）
 的唯一接口契约。各工作块实现时必须严格匹配本文字段名与取值，不得自行改名或增删必填字段。
 
-闭环：
+总体流程分为两个阶段：
+
+```text
+第一阶段：用户想法 → 多智能体讨论 → 建设方案 → R1 需求确认
+第二阶段：设计规格 → B01 PM Agent 任务分解 → B02 编排 → B03 持久化
+          → B04 执行 → B06 验收 → B05 可视化与控制
+```
+
+第一阶段的 R1 是第二阶段的需求来源之一；R1 必须确认后才能通过阶段桥接生成设计规格。
+第二阶段也支持直接输入独立的 JSON/Markdown design spec。
+
+第二阶段闭环：
 
 ```text
 设计规格输入 → B01 任务分解 → B02 任务编排 → B03 状态持久化
@@ -143,6 +154,8 @@ priority timeout retry_budget escalation_target
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | `/api/task-plans/load` | 载入并校验 plan |
+| POST | `/api/task-runs/from-spec` | 设计规格 → B01 动态计划 → 创建任务运行 |
+| POST | `/api/task-runs/from-discussion` | 已确认 R1 → 设计规格 → 创建任务运行 |
 | GET | `/api/task-plans` | 已载入计划列表 |
 | GET | `/api/task-plans/{plan_id}` | 计划详情（含 DAG） |
 | POST | `/api/task-runs` | 由计划创建任务运行 |
@@ -159,6 +172,11 @@ priority timeout retry_budget escalation_target
 ```json
 {"plan": { ... }}            // 或 {"plan_path": "b01-spec-planner/docs/plan.json"}
 ```
+
+`POST /api/task-runs/from-spec` 支持 `spec_path`、`spec_text` 或内嵌 `spec` 对象。
+`POST /api/task-runs/from-discussion` 接收 `discussion_run_id`，只允许状态为 `COMPLETED`
+且 R1 为 `CONFIRMED` 的运行进入第二阶段。`GET /api/runs/{run_id}/design-spec` 可读取
+阶段桥接产生的 design spec。
 
 响应：
 

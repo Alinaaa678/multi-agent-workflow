@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
-const state = { workflow: null, runs: [], run: null, replay: null, tab: "control", busy: false };
+const state = { workflow: null, runs: [], run: null, replay: null, tab: "control", busy: false, phase2RunId: null };
 const scenarioNames = { normal: "正常收敛", value_conflict: "价值分歧", budget_exhaustion: "预算耗尽", agent_failure: "Agent 失败" };
 const statusNames = { READY: "可推进", RUNNING: "执行中", WAITING_HUMAN: "等待人工", PAUSED: "已暂停", STOPPED: "预算停止", BLOCKED: "已阻断", COMPLETED: "已完成" };
 let toastTimer;
@@ -59,6 +59,7 @@ function renderWorkflowSteps() {
 }
 function showInput() {
   state.run = null;
+  state.phase2RunId = null;
   state.replay = null;
   clearError();
   $("#result-view").classList.add("hidden");
@@ -71,6 +72,7 @@ async function selectRun(runId) {
   clearError();
   const data = await api(`/api/runs/${encodeURIComponent(runId)}`);
   state.run = data.run;
+  state.phase2RunId = null;
   state.replay = null;
   state.tab = "control";
   renderRun();
@@ -138,7 +140,10 @@ function renderControl() {
   } else if (run.status === "PAUSED") {
     alert = '<div class="control-alert"><h3>已在检查点暂停</h3><p>恢复前不会派发新角色任务；已有黑板和事件均已保留。</p></div>';
   } else if (run.status === "COMPLETED") {
-    alert = `<div class="control-alert success"><h3>R1 已由六人确认发布</h3><p>确认人：${board.r1.confirmed_by.map(escapeHtml).join("、")}。流程、需求与回放日志可以导出。</p></div>`;
+    const phase2 = state.phase2RunId
+      ? `<p id="phase2-status" class="field-note">已生成 ${escapeHtml(state.phase2RunId)}，请在 B05 真实接口中加载该编号。</p>`
+      : `<button id="phase2-button" class="primary-button" type="button" ${state.busy ? "disabled" : ""}>进入第二阶段任务编排</button><p id="phase2-status" class="field-note"></p>`;
+    alert = `<div class="control-alert success"><h3>R1 已由六人确认发布</h3><p>确认人：${board.r1.confirmed_by.map(escapeHtml).join("、")}。流程、需求与回放日志可以导出。</p>${phase2}</div>`;
   }
   const signoffs = board.signoffs.length ? `<div class="subsection"><h3>Proposal 角色 sign-off</h3><div class="table-wrap"><table><thead><tr><th>角色</th><th>立场</th><th>理由</th></tr></thead><tbody>${board.signoffs.map((item) => `<tr><td>${escapeHtml(item.role)}</td><td>${tags(item.stance)}</td><td>${escapeHtml(item.reason)}</td></tr>`).join("")}</tbody></table></div></div>` : "";
   const r1 = board.r1 ? `<div class="subsection"><h3>已确认 R1</h3><div class="requirement-list">${board.r1.requirements.map((req) => `<div class="requirement-item"><strong>${escapeHtml(req.req_id)} · ${escapeHtml(req.description)} ${tags(req.status)}</strong><p>验收：${escapeHtml(req.acceptance)}</p></div>`).join("")}</div></div>` : "";
@@ -188,6 +193,7 @@ async function performAction(action, payload = {}) {
   try {
     const data = await api(`/api/runs/${encodeURIComponent(state.run.run_id)}/${action}`, { method: "POST", body: JSON.stringify(payload) });
     state.run = data.run;
+    state.phase2RunId = null;
     state.replay = null;
     if (state.tab === "replay") state.tab = "control";
     renderRun();
@@ -273,6 +279,18 @@ $("#tab-content").addEventListener("submit", (event) => {
     }
     performAction("confirm", { members });
   }
+});
+$("#tab-content").addEventListener("click", async (event) => {
+  if (!(event.target instanceof HTMLElement) || event.target.id !== "phase2-button" || !state.run || state.busy) return;
+  setBusy(true);
+  try {
+    const data = await api("/api/task-runs/from-discussion", {
+      method: "POST",
+      body: JSON.stringify({ discussion_run_id: state.run.run_id }),
+    });
+    state.phase2RunId = data.run.run_id;
+  } catch (error) { showError(error); }
+  finally { setBusy(false); renderTabContent(); }
 });
 
 (async function init() {
