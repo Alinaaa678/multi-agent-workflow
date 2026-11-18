@@ -4,15 +4,15 @@
   "project_id": "campus-lost-found",
   "spec_version": "S1-v1.0",
   "contract_version": "C1-v1.0",
-  "plan_version": "PLAN-v1.0",
+  "plan_version": "PLAN-campus-lost-found-v1.0",
   "requirements_version": "R1-REFERENCE-v1.0",
   "approved_ref": "REFERENCE_EXAMPLE_PENDING_HUMAN_CONFIRMATION",
   "file_checksums": {
     "r1": "d06381bffd5ec2cdaef8056fad05480207011a09c2a9353c3a6ed5c8f6e55268",
     "s1": "a3f835249c30bc092763cf43989ccedd180da778450a422cafa2630334988c35",
     "c1": "fc7b61277ccef96f403414ef742ed491c4a80b3a40a994af367bb1ba4354163d",
-    "plan": "f579490e1cab87a0ab12139a16fbbf64855ff493d6c8d67912dff064eaae9c9a",
-    "traceability": "50923546814a4d4b4b5c463fb5d50ecbdefaf1335dbb698377335cee2021b6ed"
+    "plan": "69da981f83b99c6db9be6ed25b870633d6c6efe6ffeff2f43eb29d2a4c718cf1",
+    "traceability": "ee628182f7c6527393f0aec70b075aad00494eec606bafaf6b3770c0a07cbce3"
   },
   "contract_test_ids": [
     "TC-C01",

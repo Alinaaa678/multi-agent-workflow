@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from b01.plan_validator import validate_plan
+from b01.plan_validator import validate_plan, validate_reference_profile
 from b01.task_planner import build_plan
 
 
@@ -40,13 +40,15 @@ class PlanValidatorTests(unittest.TestCase):
         by_id["T01"]["depends_on"] = ["T11"]
         report = validate_plan(plan)
         self.assertFalse(report.ok)
-        self.assertTrue(any("dependency cycle" in reason or "critical chain" in reason for reason in report.reasons))
+        self.assertTrue(any("dependency cycle" in reason for reason in report.reasons))
 
-    def test_t04_missing_required_test_is_rejected(self):
+    def test_reference_plan_missing_direct_call_test_is_rejected(self):
+        """TC-P02 是参考 fixture 的规定用例，由 reference profile 校验。"""
         plan = copy.deepcopy(self.plan)
         t04 = next(task for task in plan["tasks"] if task["task_id"] == "T04")
         t04["required_test_ids"] = ["TC-P01"]
-        report = validate_plan(plan)
+        self.assertTrue(validate_plan(plan).ok)
+        report = validate_reference_profile(plan)
         self.assertFalse(report.ok)
         self.assertTrue(any("TC-P02" in reason for reason in report.reasons))
 
@@ -56,6 +58,13 @@ class PlanValidatorTests(unittest.TestCase):
         report = validate_plan(plan)
         self.assertFalse(report.ok)
         self.assertTrue(any("missing field escalation_target" in reason for reason in report.reasons))
+
+    def test_bad_plan_version_is_rejected(self):
+        plan = copy.deepcopy(self.plan)
+        plan["plan_version"] = "PLAN-v1.0"
+        report = validate_plan(plan)
+        self.assertFalse(report.ok)
+        self.assertTrue(any("plan_version must match" in reason for reason in report.reasons))
 
 
 if __name__ == "__main__":

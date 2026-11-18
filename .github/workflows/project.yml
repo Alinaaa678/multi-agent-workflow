@@ -17,3 +17,25 @@ jobs:
           test -f README.md
           test -f docs/PROJECT_OVERVIEW.md
           test -f docs/BRANCHING.md
+          test -f docs/TASK_ORCHESTRATION.md
+          test -f docs/STAGE2_STATUS.md
+          test -f workflow_runtime/bootstrap.py
+          test -f workflow_runtime/verify_contracts.py
+          test -f b01-spec-planner/src/b01/spec_input.py
+          test -f b01-spec-planner/src/b01/dynamic_planner.py
+          test -f b02-workflow-agent/backend/task_orchestrator.py
+          test -f b03/b03_implementation/task_state.py
+          test -f b04-agent-integration/src/b04/gateway.py
+          test -f b06-quality-consensus/multiagent_quality/task_gate.py
+      - name: Reject Windows-invalid path characters
+        run: |
+          # 仓库曾因包含 '?' 的文件名导致 Windows 无法 checkout。
+          if git ls-files | grep -E '[?*<>|"]' ; then
+            echo "Found files with Windows-invalid characters" >&2
+            exit 1
+          fi
+          if git ls-files | grep -E ':$' ; then
+            echo "Found files ending with a colon" >&2
+            exit 1
+          fi
+          echo "No Windows-invalid paths"

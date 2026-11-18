@@ -1,0 +1,136 @@
+{
+  "schema_version": "b01.spec.v1",
+  "project_id": "campus-lost-found",
+  "title": "校园失物招领系统",
+  "spec_version": "S1-v1.0",
+  "contract_version": "C1-v1.0",
+  "requirements": [
+    {
+      "req_id": "LR-01",
+      "title": "注册登录",
+      "description": "普通校内用户注册、登录和退出；受保护操作要求已登录；凭据不得明文保存或返回。",
+      "priority": "must",
+      "acceptance": ["重复账号拒绝", "错误凭据拒绝", "未登录不能发布或申请认领"],
+      "constraints": ["password_hash 不得出现在任何公开响应"]
+    },
+    {
+      "req_id": "LR-02",
+      "title": "发布失物",
+      "description": "用户填写名称、描述、丢失地点、丢失时间 lost_at；发布者取当前身份；初始状态为待认领。",
+      "priority": "must",
+      "acceptance": ["合法输入生成记录", "lost_at 缺失、空值或格式错误时拒绝且不写入"],
+      "constraints": ["publisher_id 由会话取得，不接受客户端指定", "status 本轮仅取 waiting"]
+    },
+    {
+      "req_id": "LR-03",
+      "title": "关键词及地点搜索",
+      "description": "按关键词及丢失地点检索，支持分页；列表和详情不暴露登录凭据与私人联系方式。",
+      "priority": "must",
+      "acceptance": ["匹配项可检索", "无匹配返回空列表", "详情字段与发布结果一致"],
+      "constraints": ["公开视图使用 LostView", "page_size 范围 1—100"]
+    },
+    {
+      "req_id": "LR-04",
+      "title": "认领申请",
+      "description": "登录用户对未被认领的失物提交一次认领申请，可查询本人申请。",
+      "priority": "must",
+      "acceptance": ["禁止认领本人发布的信息", "重复申请拒绝", "本人可查询申请结果"],
+      "constraints": ["(lost_item_id, applicant_id) 唯一"]
+    },
+    {
+      "req_id": "LR-05",
+      "title": "本人资料及本人记录",
+      "description": "登录用户查看和修改本人昵称，查看本人发布的失物与本人提交的认领申请。",
+      "priority": "must",
+      "acceptance": ["仅能读写本人数据", "分页返回本人记录"],
+      "constraints": ["越权访问返回 FORBIDDEN"]
+    }
+  ],
+  "design_entries": [
+    {
+      "design_id": "DS-AUTH-01",
+      "module": "用户与身份",
+      "req_refs": ["LR-01", "LR-05"],
+      "contract_refs": ["register", "login", "logout"],
+      "test_refs": ["TC-AUTH-01", "TC-AUTH-02"],
+      "rule": "凭据以 Argon2id 哈希存储，任何公开响应不含 password_hash。"
+    },
+    {
+      "design_id": "DS-USER-01",
+      "module": "用户与身份",
+      "req_refs": ["LR-05"],
+      "contract_refs": ["get_me", "update_me", "list_my_posts", "list_my_claims"],
+      "test_refs": ["TC-USER-01"],
+      "rule": "本人资料与本人记录只能由会话身份访问，越权返回 FORBIDDEN。"
+    },
+    {
+      "design_id": "DS-LOST-01",
+      "module": "失物发布与搜索",
+      "req_refs": ["LR-02"],
+      "contract_refs": ["publish_lost"],
+      "test_refs": ["TC-P01", "TC-P02", "TC-P03"],
+      "rule": "lost_at 必填且带时区；缺失、空值或非法格式拒绝且不写入。"
+    },
+    {
+      "design_id": "DS-LOST-02",
+      "module": "失物发布与搜索",
+      "req_refs": ["LR-03"],
+      "contract_refs": ["search_lost", "get_lost"],
+      "test_refs": ["TC-SEARCH-01"],
+      "rule": "搜索与详情使用公开视图，page_size 限制在 1—100。"
+    },
+    {
+      "design_id": "DS-CLAIM-01",
+      "module": "认领申请",
+      "req_refs": ["LR-04"],
+      "contract_refs": ["create_claim"],
+      "test_refs": ["TC-CLAIM-01", "TC-CLAIM-02"],
+      "rule": "禁止认领本人发布信息；(lost_item_id, applicant_id) 唯一约束防重复申请。"
+    },
+    {
+      "design_id": "DS-COMMON-01",
+      "module": "公共约束",
+      "req_refs": ["LR-01", "LR-02", "LR-03", "LR-04", "LR-05"],
+      "contract_refs": [],
+      "test_refs": ["TC-FLOW-01"],
+      "rule": "统一响应信封：成功 {ok:true,data}，失败 {ok:false,error:{code,field,message}}。"
+    }
+  ],
+  "contract": {
+    "contract_version": "C1-v1.0",
+    "prefix": "/api/v1",
+    "operations": [
+      {"name": "register", "method": "POST", "path": "/api/v1/auth/register", "authenticated": false, "required": ["account", "password", "nickname"], "status": 201, "data": "UserView"},
+      {"name": "login", "method": "POST", "path": "/api/v1/auth/login", "authenticated": false, "required": ["account", "password"], "status": 200, "data": "LoginView"},
+      {"name": "logout", "method": "POST", "path": "/api/v1/auth/logout", "authenticated": true, "required": [], "status": 200, "data": "Null"},
+      {"name": "get_me", "method": "GET", "path": "/api/v1/me", "authenticated": true, "required": [], "status": 200, "data": "UserView"},
+      {"name": "update_me", "method": "PATCH", "path": "/api/v1/me", "authenticated": true, "required": ["nickname"], "status": 200, "data": "UserView"},
+      {"name": "list_my_posts", "method": "GET", "path": "/api/v1/me/lost-items", "authenticated": true, "query": ["page", "page_size"], "status": 200, "data": "LostPage"},
+      {"name": "list_my_claims", "method": "GET", "path": "/api/v1/me/claims", "authenticated": true, "query": ["page", "page_size"], "status": 200, "data": "ClaimPage"},
+      {"name": "publish_lost", "method": "POST", "path": "/api/v1/lost-items", "authenticated": true, "required": ["name", "description", "location", "lost_at"], "status": 201, "data": "LostView"},
+      {"name": "search_lost", "method": "GET", "path": "/api/v1/lost-items", "authenticated": false, "query": ["keyword", "location", "page", "page_size"], "status": 200, "data": "LostPage"},
+      {"name": "get_lost", "method": "GET", "path": "/api/v1/lost-items/{id}", "authenticated": false, "required": [], "status": 200, "data": "LostView"},
+      {"name": "create_claim", "method": "POST", "path": "/api/v1/lost-items/{id}/claims", "authenticated": true, "required": ["statement"], "status": 201, "data": "ClaimView"}
+    ],
+    "errors": {
+      "REQUIRED_FIELD": 400,
+      "INVALID_FIELD": 400,
+      "UNAUTHENTICATED": 401,
+      "FORBIDDEN": 403,
+      "NOT_FOUND": 404,
+      "DUPLICATE_ACCOUNT": 409,
+      "DUPLICATE_CLAIM": 409,
+      "INVALID_STATE": 409,
+      "INTERNAL_ERROR": 500
+    },
+    "field_bounds": {
+      "account": {"min": 3, "max": 64, "pattern": "^[a-z0-9_]+$"},
+      "password": {"min": 8, "max": 128},
+      "nickname": {"min": 1, "max": 30},
+      "name": {"min": 1, "max": 80},
+      "description": {"min": 1, "max": 1000},
+      "location": {"min": 1, "max": 120},
+      "statement": {"min": 1, "max": 500}
+    }
+  }
+}

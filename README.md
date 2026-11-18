@@ -1,6 +1,6 @@
 # 通用多智能体协作开发平台
 
-本仓库实现一个可适配不同业务系统的多智能体协作开发平台。平台把需求讨论、设计规格、任务编排、Agent 执行、交互展示和独立质量验收组织成可追溯的 Workflow，不把任何单一业务系统写死在核心流程中。
+本仓库实现一个可适配不同业务系统的多智能体协作开发平台。平台把需求讨论、设计规格、任务编排、Agent 执行、证据验收、交互展示和独立质量验收组织成可追溯的 Workflow，不把任何单一业务系统写死在核心流程中。
 
 校园失物招领系统只是用于演示和回归测试的示例 fixture。接入电商、教务、医疗、企业内部系统或其他软件项目时，只需替换领域需求、数据模型、接口契约和测试适配器，平台的黑板、编排器、Agent 协议、证据规则和质量门仍可复用。
 
@@ -12,22 +12,47 @@
 - **主持人编排器**：根据依赖、权限和验收条件推进任务，处理等待、失败、返修和重验。
 - **可插拔 Agent**：产品、用户研究、架构、实现、测试、质量等角色通过统一输入输出协议接入，可替换模型和领域提示词。
 - **领域适配器**：为具体系统提供需求模板、术语表、数据模型、接口契约、测试 fixture 和导出格式。
-- **独立质量门**：校验计划、证据、共识、缺陷和回归结果，不把模型回复当成测试证据。
+- **独立质量门**：校验计划、证据、缺陷和回归结果，不把模型回复当成测试证据。
 
-核心流程不依赖校园案例：
+通用骨架与领域适配解耦：
 
 ```text
-通用项目输入 → 需求与设计基线 → 任务图 → Agent 产物 → 独立验收 → 集成发布
+通用项目输入 → 需求与设计基线 → 任务图（DAG）→ Agent 产物 → 独立验收 → 集成发布
 ```
+
+## 第二阶段闭环（已完成）
+
+```text
+设计规格输入 → B01 任务分解 → B02 任务编排 → B03 状态持久化
+→ B04 Agent 执行 → B06 证据验收 → B05 DAG 可视化 → 集成发布
+```
+
+各环节的字段与接口契约集中在 **[docs/TASK_ORCHESTRATION.md](docs/TASK_ORCHESTRATION.md)**，
+所有工作块按同一份契约实现，跨块联调由 `workflow_runtime/` 装配与验证。
+
+### 能力速览
+
+| 能力 | 位置 | 说明 |
+| --- | --- | --- |
+| 通用规格输入 | `b01-spec-planner/src/b01/spec_input.py` | 支持任意系统的设计规格 JSON/Markdown，归一化为统一结构 |
+| 动态计划 | `b01-spec-planner/src/b01/dynamic_planner.py` | 按规格推导任务、DAG、拓扑序，不固定 T01—T11 |
+| 计划校验 | `b01-spec-planner/src/b01/plan_validator.py` | 结构、需求覆盖、产物归属、依赖环、版本一致性 |
+| 任务编排 API | `b02-workflow-agent/backend/task_api.py` | `task-plans/load`、`task-runs`、`step`、`run`、`events`、`dag`、`replay` |
+| 编排状态机 | `b02-workflow-agent/backend/task_orchestrator.py` | 九态、依赖检查、防重复派发、attempt_id、retry_count、有限重试、阻断传播 |
+| 状态持久化 | `b03/b03_implementation/task_state.py` | 运行/状态/尝试历史/事件/检查点，支持断点恢复与回放 |
+| 统一执行 Gateway | `b04-agent-integration/src/b04/gateway.py` | §5 输入输出契约，`mock` 与真实 runner 两种模式 |
+| 质量门 | `b06-quality-consensus/multiagent_quality/task_gate.py` | 九项必查、只返回判定与事件，不写状态 |
+| 任务 DAG 展示 | `frontend/src/` | 九态图例、依赖边、重试/耗时/阻塞、任务详情面板、真实接口接入 |
+| 闭环演示与验证 | `workflow_runtime/` | 一键跑通闭环 + 契约一致性检查 |
 
 ## 当前工作块
 
-- B01：需求与范围确认
-- B02：讨论控制器与流程编排
-- B03：共享黑板与状态数据
-- B04：Agent 接入与模型适配
-- B05：交互展示与结果导出
-- B06：质量共识、测试证据与缺陷闭环
+- B01：需求确认与规格规划（通用规格输入 + 动态任务计划）
+- B02：任务编排器与讨论控制器（含开发任务编排 HTTP API）
+- B03：共享黑板、状态持久化与事件
+- B04：Agent 接入、统一执行 Gateway 与模型适配
+- B05：交互展示与结果导出（任务 DAG 视图）
+- B06：质量共识、测试证据与缺陷闭环（含开发任务质量门）
 
 ## 分支约定
 
@@ -36,14 +61,14 @@
 - `bXX-*`：各工作块的长期开发分支。
 - `bXX-*/task-*`：单项任务的短期分支。
 
-不要直接向 `main` 推送。提交应关联任务编号、需求引用、输入版本、测试命令和证据；接口变更需要通知所有消费方。
+不要直接向 `main` 推送。提交应关联任务编号、需求引用、输入版本、测试命令和证据；接口变更需通知所有消费方。
 
 ## 接入新系统
 
-1. 创建领域适配器，描述业务需求、术语、实体和边界。
-2. 生成并冻结该系统的设计规格与接口契约。
-3. 将领域验收项映射为任务和测试 fixture。
-4. 复用通用 Agent 协议、编排规则和质量门运行完整 Workflow。
+1. 编写该系统的设计规格（JSON 或 Markdown，格式见 `docs/TASK_ORCHESTRATION.md` §2.1）。
+2. 用 `python -m workflow_runtime pipeline --spec <你的规格>` 验证规格能被正确分解。
+3. 把领域验收项映射为任务的 `acceptance` 与 `required_test_ids`。
+4. 复用通用 Agent 协议、编排规则和质量门跑完整 Workflow。
 5. 将领域结果与通用过程证据分开保存，避免污染核心模型。
 
 ## 快速开始
@@ -53,17 +78,17 @@
 各工作块可以独立验证：
 
 ```powershell
-# B01 规格规划
+# B01 规格规划（含通用规格输入与动态计划）
 cd b01-spec-planner
 python -m pip install -e ".[test]"
 python run_checks.py all --allow-reference
 python -m pytest -q
 
-# B02 讨论控制器
+# B02 讨论控制器 + 任务编排器
 cd ..\b02-workflow-agent
 python -m unittest discover -s tests -v
 
-# B03 黑板
+# B03 黑板与状态持久化
 cd ..\b03\b03_implementation
 python -m pytest -q
 
@@ -82,11 +107,16 @@ npm run lint
 cd ..\b06-quality-consensus
 python -m pytest -q
 python -m tests.smoke
+
+# 第二阶段闭环（规格 → 计划 → 编排 → 执行 → 验收 → DAG → 回放）
+cd ..
+python workflow_runtime/verify_contracts.py
+python -m workflow_runtime pipeline --scenario success
 ```
 
 ## 运行项目原型
 
-先启动 B02 后端：
+先启动 B02 后端（讨论控制器 + 任务编排 API）：
 
 ```powershell
 cd b02-workflow-agent
@@ -101,11 +131,40 @@ npm ci
 npm run dev
 ```
 
-浏览器打开 Vite 输出的本地地址即可查看任务图和流程状态。当前前端使用 mock 数据和控制接口适配层；接入真实后端时，按 B02 的 WebSocket/API 说明配置地址。
+浏览器打开 Vite 输出的本地地址。
+
+前端有两个数据源，界面会明确标注当前来源：
+
+- **模拟推演**：展示由真实编排器（B02+B03+B04+B06）跑出的历史运行快照，
+  可在下拉框切换「全部通过」与「失败/阻断」两个场景。
+- **真实接口**：填入 B02 地址与运行编号（`TASK-RUN-…`）后实时拉取
+  `GET /api/task-runs/{run_id}` 与 `/dag`。连接失败时显示错误且**不会**
+  把模拟数据当作真实数据展示。
+
+## 一键闭环演示
+
+```powershell
+# 全部任务验收通过
+python -m workflow_runtime pipeline --scenario success
+
+# 失败 → 有限重试耗尽 → 下游阻塞
+python -m workflow_runtime pipeline --scenario retry
+
+# 执行被阻断 → 阻断向下游传播
+python -m workflow_runtime pipeline --scenario blocked
+
+# 缺少规定测试证据 → 质量门驳回并登记缺陷
+python -m workflow_runtime pipeline --scenario evidence
+```
+
+每个场景都会输出计划版本、运行状态、完成数、DAG 规模、检查点序号、
+事件回放一致性与失败任务明细。
 
 ## 文档
 
 - [项目总览](docs/PROJECT_OVERVIEW.md)
+- [任务编排闭环契约](docs/TASK_ORCHESTRATION.md)
+- [第二阶段实施记录](docs/STAGE2_STATUS.md)
 - [GitHub 协作与分支流程](docs/BRANCHING.md)
 - [集成运行说明](docs/INTEGRATION.md)
 

@@ -1,0 +1,140 @@
+{
+  "plan_version": "PLAN-lab-equipment-loan-v1.0",
+  "spec_version": "S2-v0.1",
+  "contract_version": "C2-v0.1",
+  "project_id": "lab-equipment-loan",
+  "input_snapshot": {
+    "spec_source": "file",
+    "spec_format": "markdown",
+    "spec_sha256": "86970fe8e363857b0f44267d8bf28b32efef109e4e47ddf4790cd1669ee0a776",
+    "contract_sha256": "4c93e58ab5c5df06711bf171e9b87bdd4d1c20324df68eeb5c4f544d50ac1f4c",
+    "spec_version": "S2-v0.1",
+    "contract_version": "C2-v0.1",
+    "requirement_count": 3,
+    "design_entry_count": 3,
+    "contract_operation_count": 3,
+    "schema_version": "b01.spec.v1"
+  },
+  "format": "design_id -> req_refs -> contract_refs -> test_refs -> task_refs",
+  "items": [
+    {
+      "design_id": "DS-EQ-REG-01",
+      "module": "设备管理",
+      "req_refs": [
+        "EQ-01"
+      ],
+      "contract_refs": [
+        "register_equipment"
+      ],
+      "test_refs": [
+        "TC-EQ-REG-01"
+      ],
+      "task_refs": [
+        "T01",
+        "T07",
+        "T10",
+        "T11"
+      ],
+      "rule": "设备编号唯一且大小写不敏感比较。"
+    },
+    {
+      "design_id": "DS-EQ-LOAN-01",
+      "module": "借用管理",
+      "req_refs": [
+        "EQ-02"
+      ],
+      "contract_refs": [
+        "create_loan"
+      ],
+      "test_refs": [
+        "TC-EQ-LOAN-01"
+      ],
+      "task_refs": [
+        "T02",
+        "T08",
+        "T10",
+        "T11"
+      ],
+      "rule": "借用时间段不得与既有有效借用重叠。"
+    },
+    {
+      "design_id": "DS-EQ-RETURN-01",
+      "module": "借用管理",
+      "req_refs": [
+        "EQ-03"
+      ],
+      "contract_refs": [
+        "return_loan"
+      ],
+      "test_refs": [
+        "TC-EQ-RETURN-01"
+      ],
+      "task_refs": [
+        "T03",
+        "T09",
+        "T10",
+        "T11"
+      ],
+      "rule": "仅 borrowed 状态的设备可归还。"
+    }
+  ],
+  "requirements": [
+    {
+      "req_id": "EQ-01",
+      "title": "设备登记",
+      "priority": "must",
+      "design_refs": [
+        "DS-EQ-REG-01"
+      ],
+      "task_refs": [
+        "T01",
+        "T04",
+        "T05",
+        "T06",
+        "T07",
+        "T10",
+        "T11"
+      ]
+    },
+    {
+      "req_id": "EQ-02",
+      "title": "借用申请",
+      "priority": "must",
+      "design_refs": [
+        "DS-EQ-LOAN-01"
+      ],
+      "task_refs": [
+        "T02",
+        "T04",
+        "T05",
+        "T06",
+        "T08",
+        "T10",
+        "T11"
+      ]
+    },
+    {
+      "req_id": "EQ-03",
+      "title": "归还登记",
+      "priority": "should",
+      "design_refs": [
+        "DS-EQ-RETURN-01"
+      ],
+      "task_refs": [
+        "T03",
+        "T04",
+        "T05",
+        "T06",
+        "T09",
+        "T10",
+        "T11"
+      ]
+    }
+  ],
+  "covered_requirements": [
+    "EQ-01",
+    "EQ-02",
+    "EQ-03"
+  ],
+  "uncovered_requirements": []
+}

@@ -1,8 +1,70 @@
-# B02 WorkflowAgent · discussion_controller
+# B02 WorkflowAgent · discussion_controller + task_orchestrator
 
-这是第 10 组**第一部分 B02 流程编排 Agent**的可运行原型。交付范围是讨论状态机、轮次控制、独立发散、批判回路、暂停恢复、人工确认入口，以及 Workflow 图、阶段迁移表和控制伪代码。
+这是第 10 组**第一部分 B02 流程编排 Agent**的可运行原型，包含两套相互独立的能力：
 
-> 本目录不是“课堂作业 2：设计规格 → 开发任务分解 → 开发任务编排”。界面中没有开发任务 DAG，也不声称完成产品代码开发。
+1. **讨论状态机（`discussion_controller`）**：轮次控制、独立发散、批判回路、暂停恢复、
+   人工确认入口，以及 Workflow 图、阶段迁移表和控制伪代码。
+2. **开发任务编排器（`task_orchestrator`，第二阶段 D15/D16）**：读取 B01 `plan.json`，
+   维护九态、检查依赖、拒绝重复派发、管理 `attempt_id` / `retry_count`，
+   把任务派发给 B04、把候选结果交给 B06 验收，并记录任务事件。
+
+两者的状态存储相互独立：讨论流程用 `data/RUN-*.json`，任务编排用
+`data/task-state.db`（B03 `TaskStateStore`）。接口契约见
+[`docs/TASK_ORCHESTRATION.md`](../docs/TASK_ORCHESTRATION.md)。
+
+## 任务编排 API
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/task-plans/load` | 载入并校验计划（`{"plan": {...}}` 或 `{"plan_path": "..."}`） |
+| GET | `/api/task-plans` | 已载入计划列表 |
+| GET | `/api/task-plans/{plan_id}` | 计划详情 |
+| POST | `/api/task-runs` | 由计划创建运行 |
+| GET | `/api/task-runs` | 运行列表 |
+| GET | `/api/task-runs/{run_id}` | 运行快照 |
+| POST | `/api/task-runs/{run_id}/step` | 推进一个调度步（最多派发一个任务） |
+| POST | `/api/task-runs/{run_id}/run` | 推进到收敛或步数上限 |
+| GET | `/api/task-runs/{run_id}/events?after=&limit=` | 事件流（游标分页） |
+| GET | `/api/task-runs/{run_id}/dag` | DAG 视图（节点 + 边） |
+| POST | `/api/task-runs/{run_id}/replay` | 事件回放并与快照比对 |
+| GET | `/api/task-runs/{run_id}/restore` | 断点恢复视图 |
+
+示例（B02 启动后）：
+
+```bash
+curl -X POST http://127.0.0.1:7100/api/task-plans/load \
+  -H "Content-Type: application/json" \
+  -d '{"plan_path": "b01-spec-planner/docs/fixtures/campus-lost-found.plan.json"}'
+
+curl -X POST http://127.0.0.1:7100/api/task-runs \
+  -H "Content-Type: application/json" -d '{"plan_id": "PLAN-campus-lost-found-v1.0"}'
+
+curl -X POST http://127.0.0.1:7100/api/task-runs/TASK-RUN-XXXXXXXX/run \
+  -H "Content-Type: application/json" -d '{"max_steps": 200}'
+
+curl http://127.0.0.1:7100/api/task-runs/TASK-RUN-XXXXXXXX/dag
+```
+
+### 状态机要点
+
+- 九态：`PENDING READY RUNNING WAITING_DEPENDENCY REVIEWING FAILED RETRYING BLOCKED SUCCEEDED`。
+- 只有依赖全部 `SUCCEEDED` 才进入 `READY`；上游 `FAILED`/`BLOCKED` 使下游 `BLOCKED` 并记录
+  `blocked_reason`。
+- `RUNNING`/`REVIEWING` 期间重复派发被拒绝；`attempt_id` 单调递增，`retry_count`
+  只在失败重派时递增，且不超过任务的 `retry_budget`。
+- 事件绑定 `task_id` / `attempt_id` / `plan_version` / `input_snapshot`；
+  `TASK_OUTPUT_SUBMITTED` 与 `TASK_ACCEPTED` 额外携带 `candidate_commit`。
+- **只有 B02 写状态**：B04 只返回执行结果，B06 只返回判定与事件。
+  `TASK_ACCEPTED` 等状态事件的 `producer` 恒为 `B02`，B06 结论通过
+  `payload.gate` 与独立缺陷事件体现。
+
+### 执行与验收接入
+
+默认（未安装其他工作块时）使用编排器内置的显式占位实现，返回值标记 `simulated`。
+从仓库根目录运行时可自动接入真实工作块：
+
+- 执行：B04 `b04.gateway.TaskExecutionGateway`（`mock` 确定性模式）。
+- 验收：B06 `multiagent_quality.task_gate.review_task`。
 
 ## 1. 启动与验证
 

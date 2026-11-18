@@ -1,0 +1,523 @@
+{
+  "schema_version": "b01.plan.v1",
+  "project_id": "lab-equipment-loan",
+  "title": "设备借用管理（Demo）",
+  "spec_version": "S2-v0.1",
+  "contract_version": "C2-v0.1",
+  "plan_version": "PLAN-lab-equipment-loan-v1.0",
+  "generated_by": "B01 SpecPlannerAgent dynamic planner",
+  "generated_at": "2026-11-18T09:00:51+00:00",
+  "required_requirements": [
+    "EQ-01",
+    "EQ-02",
+    "EQ-03"
+  ],
+  "tasks": [
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T01",
+      "project_id": "lab-equipment-loan",
+      "req_refs": [
+        "EQ-01"
+      ],
+      "design_refs": [
+        "DS-EQ-REG-01"
+      ],
+      "spec_version": "S2-v0.1",
+      "contract_version": "C2-v0.1",
+      "goal": "实现 DS-EQ-REG-01（设备管理）：设备编号唯一且大小写不敏感比较。",
+      "inputs": [
+        "S2-v0.1",
+        "C2-v0.1",
+        "register_equipment"
+      ],
+      "outputs": [
+        "artifact-ds-eq-reg-01"
+      ],
+      "depends_on": [],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/设备管理/ds-eq-reg-01.*"
+      ],
+      "acceptance": [
+        "设备编号唯一且大小写不敏感比较。"
+      ],
+      "required_test_ids": [
+        "TC-EQ-REG-01"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T02",
+      "project_id": "lab-equipment-loan",
+      "req_refs": [
+        "EQ-02"
+      ],
+      "design_refs": [
+        "DS-EQ-LOAN-01"
+      ],
+      "spec_version": "S2-v0.1",
+      "contract_version": "C2-v0.1",
+      "goal": "实现 DS-EQ-LOAN-01（借用管理）：借用时间段不得与既有有效借用重叠。",
+      "inputs": [
+        "S2-v0.1",
+        "C2-v0.1",
+        "create_loan"
+      ],
+      "outputs": [
+        "artifact-ds-eq-loan-01"
+      ],
+      "depends_on": [],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/借用管理/ds-eq-loan-01.*"
+      ],
+      "acceptance": [
+        "借用时间段不得与既有有效借用重叠。"
+      ],
+      "required_test_ids": [
+        "TC-EQ-LOAN-01"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T03",
+      "project_id": "lab-equipment-loan",
+      "req_refs": [
+        "EQ-03"
+      ],
+      "design_refs": [
+        "DS-EQ-RETURN-01"
+      ],
+      "spec_version": "S2-v0.1",
+      "contract_version": "C2-v0.1",
+      "goal": "实现 DS-EQ-RETURN-01（借用管理）：仅 borrowed 状态的设备可归还。",
+      "inputs": [
+        "S2-v0.1",
+        "C2-v0.1",
+        "return_loan"
+      ],
+      "outputs": [
+        "artifact-ds-eq-return-01"
+      ],
+      "depends_on": [],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/借用管理/ds-eq-return-01.*"
+      ],
+      "acceptance": [
+        "仅 borrowed 状态的设备可归还。"
+      ],
+      "required_test_ids": [
+        "TC-EQ-RETURN-01"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T04",
+      "project_id": "lab-equipment-loan",
+      "req_refs": [
+        "EQ-01",
+        "EQ-02",
+        "EQ-03"
+      ],
+      "design_refs": [],
+      "spec_version": "S2-v0.1",
+      "contract_version": "C2-v0.1",
+      "goal": "实现契约操作 register_equipment（POST /api/v1/equipment，认证=True）",
+      "inputs": [
+        "C2-v0.1",
+        "operation:register_equipment"
+      ],
+      "outputs": [
+        "contract-register-equipment"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/register-equipment.*"
+      ],
+      "acceptance": [
+        "POST /api/v1/equipment 返回 201",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-REGISTER-EQUIPMENT"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T05",
+      "project_id": "lab-equipment-loan",
+      "req_refs": [
+        "EQ-01",
+        "EQ-02",
+        "EQ-03"
+      ],
+      "design_refs": [],
+      "spec_version": "S2-v0.1",
+      "contract_version": "C2-v0.1",
+      "goal": "实现契约操作 create_loan（POST /api/v1/loans，认证=True）",
+      "inputs": [
+        "C2-v0.1",
+        "operation:create_loan"
+      ],
+      "outputs": [
+        "contract-create-loan"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/create-loan.*"
+      ],
+      "acceptance": [
+        "POST /api/v1/loans 返回 201",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-CREATE-LOAN"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "AgentIntegrationAgent",
+      "block_id": "B04",
+      "task_id": "T06",
+      "project_id": "lab-equipment-loan",
+      "req_refs": [
+        "EQ-01",
+        "EQ-02",
+        "EQ-03"
+      ],
+      "design_refs": [],
+      "spec_version": "S2-v0.1",
+      "contract_version": "C2-v0.1",
+      "goal": "实现契约操作 return_loan（POST /api/v1/loans/{id}/return，认证=True）",
+      "inputs": [
+        "C2-v0.1",
+        "operation:return_loan"
+      ],
+      "outputs": [
+        "contract-return-loan"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03"
+      ],
+      "capability": "BE-01",
+      "write_scope": [
+        "src/api/return-loan.*"
+      ],
+      "acceptance": [
+        "POST /api/v1/loans/{id}/return 返回 200",
+        "必填字段缺失时返回字段级错误",
+        "响应字段与契约一致"
+      ],
+      "required_test_ids": [
+        "TC-C-RETURN-LOAN"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "QualityConsensusAgent",
+      "block_id": "B06",
+      "task_id": "T07",
+      "project_id": "lab-equipment-loan",
+      "req_refs": [
+        "EQ-01"
+      ],
+      "design_refs": [
+        "DS-EQ-REG-01"
+      ],
+      "spec_version": "S2-v0.1",
+      "contract_version": "C2-v0.1",
+      "goal": "验收需求 EQ-01：设备登记",
+      "inputs": [
+        "S2-v0.1",
+        "EQ-01",
+        "候选产物"
+      ],
+      "outputs": [
+        "evidence-eq-01"
+      ],
+      "depends_on": [
+        "T01",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "QA-01",
+      "write_scope": [
+        "evidence/eq-01/*"
+      ],
+      "acceptance": [
+        "编号唯一时登记成功",
+        "编号重复时返回 DUPLICATE_EQUIPMENT",
+        "满足约束: 编号由管理员提供，不做自动生成"
+      ],
+      "required_test_ids": [
+        "TC-EQ-01-POS",
+        "TC-EQ-01-NEG"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "QualityConsensusAgent",
+      "block_id": "B06",
+      "task_id": "T08",
+      "project_id": "lab-equipment-loan",
+      "req_refs": [
+        "EQ-02"
+      ],
+      "design_refs": [
+        "DS-EQ-LOAN-01"
+      ],
+      "spec_version": "S2-v0.1",
+      "contract_version": "C2-v0.1",
+      "goal": "验收需求 EQ-02：借用申请",
+      "inputs": [
+        "S2-v0.1",
+        "EQ-02",
+        "候选产物"
+      ],
+      "outputs": [
+        "evidence-eq-02"
+      ],
+      "depends_on": [
+        "T02",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "QA-01",
+      "write_scope": [
+        "evidence/eq-02/*"
+      ],
+      "acceptance": [
+        "起止时间合法时创建成功",
+        "结束时间早于开始时间时拒绝",
+        "满足约束: 同一设备同一时段不允许重复占用"
+      ],
+      "required_test_ids": [
+        "TC-EQ-02-POS",
+        "TC-EQ-02-NEG"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "QualityConsensusAgent",
+      "block_id": "B06",
+      "task_id": "T09",
+      "project_id": "lab-equipment-loan",
+      "req_refs": [
+        "EQ-03"
+      ],
+      "design_refs": [
+        "DS-EQ-RETURN-01"
+      ],
+      "spec_version": "S2-v0.1",
+      "contract_version": "C2-v0.1",
+      "goal": "验收需求 EQ-03：归还登记",
+      "inputs": [
+        "S2-v0.1",
+        "EQ-03",
+        "候选产物"
+      ],
+      "outputs": [
+        "evidence-eq-03"
+      ],
+      "depends_on": [
+        "T03",
+        "T04",
+        "T05",
+        "T06"
+      ],
+      "capability": "QA-01",
+      "write_scope": [
+        "evidence/eq-03/*"
+      ],
+      "acceptance": [
+        "归还后设备状态为 available",
+        "未借出的设备不允许归还"
+      ],
+      "required_test_ids": [
+        "TC-EQ-03-POS",
+        "TC-EQ-03-NEG"
+      ],
+      "priority": "P1",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "QualityConsensusAgent",
+      "block_id": "B06",
+      "task_id": "T10",
+      "project_id": "lab-equipment-loan",
+      "req_refs": [
+        "EQ-01",
+        "EQ-02",
+        "EQ-03"
+      ],
+      "design_refs": [
+        "DS-EQ-REG-01",
+        "DS-EQ-LOAN-01",
+        "DS-EQ-RETURN-01"
+      ],
+      "spec_version": "S2-v0.1",
+      "contract_version": "C2-v0.1",
+      "goal": "执行联调回归并登记缺陷",
+      "inputs": [
+        "全部候选产物",
+        "验收证据",
+        "环境说明"
+      ],
+      "outputs": [
+        "integration-report-lab-equipment-loan"
+      ],
+      "depends_on": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T05",
+        "T06",
+        "T07",
+        "T08",
+        "T09"
+      ],
+      "capability": "QA-01",
+      "write_scope": [
+        "evidence/lab-equipment-loan/integration/*"
+      ],
+      "acceptance": [
+        "规定用例全部通过",
+        "无未关闭阻断缺陷",
+        "报告对应同一组产物版本"
+      ],
+      "required_test_ids": [
+        "TC-REG-LAB-EQUIPMENT-LOAN",
+        "TC-FLOW-01"
+      ],
+      "priority": "P0",
+      "timeout": 1200,
+      "retry_budget": 2,
+      "escalation_target": "B02 WorkflowAgent"
+    },
+    {
+      "role_id": "SpecPlannerAgent",
+      "block_id": "B01",
+      "task_id": "T11",
+      "project_id": "lab-equipment-loan",
+      "req_refs": [
+        "EQ-01",
+        "EQ-02",
+        "EQ-03"
+      ],
+      "design_refs": [
+        "DS-EQ-REG-01",
+        "DS-EQ-LOAN-01",
+        "DS-EQ-RETURN-01"
+      ],
+      "spec_version": "S2-v0.1",
+      "contract_version": "C2-v0.1",
+      "goal": "汇总交付包、运行说明与需求追溯表",
+      "inputs": [
+        "集成报告",
+        "全部任务产物",
+        "追溯表"
+      ],
+      "outputs": [
+        "delivery-package-lab-equipment-loan"
+      ],
+      "depends_on": [
+        "T10"
+      ],
+      "capability": "orchestrator",
+      "write_scope": [
+        "docs/delivery-lab-equipment-loan.md"
+      ],
+      "acceptance": [
+        "必需文件齐全",
+        "可按说明复现",
+        "版本对应已验收快照"
+      ],
+      "required_test_ids": [
+        "TC-DELIVERY-01"
+      ],
+      "priority": "P0",
+      "timeout": 600,
+      "retry_budget": 2,
+      "escalation_target": "B01 SpecPlannerAgent"
+    }
+  ],
+  "topological_order": [
+    "T01",
+    "T02",
+    "T03",
+    "T04",
+    "T05",
+    "T06",
+    "T07",
+    "T08",
+    "T09",
+    "T10",
+    "T11"
+  ],
+  "input_snapshot": {
+    "spec_source": "file",
+    "spec_format": "markdown",
+    "spec_sha256": "86970fe8e363857b0f44267d8bf28b32efef109e4e47ddf4790cd1669ee0a776",
+    "contract_sha256": "4c93e58ab5c5df06711bf171e9b87bdd4d1c20324df68eeb5c4f544d50ac1f4c",
+    "spec_version": "S2-v0.1",
+    "contract_version": "C2-v0.1",
+    "requirement_count": 3,
+    "design_entry_count": 3,
+    "contract_operation_count": 3,
+    "schema_version": "b01.spec.v1"
+  }
+}

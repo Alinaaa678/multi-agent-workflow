@@ -26,7 +26,17 @@ from .config import (
 )
 from .errors import InvalidSnapshot, InvalidState, LeaseConflict, NotFound, VersionConflict
 
-VALID_STATES = {"PENDING", "READY", "RUNNING", "REVIEWING", "SUCCEEDED", "FAILED"}
+VALID_STATES = {
+    "PENDING",
+    "READY",
+    "RUNNING",
+    "WAITING_DEPENDENCY",
+    "REVIEWING",
+    "SUCCEEDED",
+    "FAILED",
+    "RETRYING",
+    "BLOCKED",
+}
 
 
 def _now() -> str:

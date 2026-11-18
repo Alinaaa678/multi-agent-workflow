@@ -3,12 +3,15 @@
 生成结果同时兼容 B06 的只读 plan validator：
 plan.spec_version / plan.contract_version / plan.tasks[]，且每个 task 至少包含
 task_id、goal、req_refs、depends_on、acceptance、required_test_ids、outputs。
+
+本模块是“固定参考任务包”；从任意规格动态生成任务请使用 `dynamic_planner`。
 """
 
 from __future__ import annotations
 
 import copy
 import heapq
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from .design import (
@@ -36,6 +39,8 @@ def topological_sort(tasks: Iterable[dict[str, Any]]) -> list[str]:
         for dep in task.get("depends_on", []):
             if dep not in registry:
                 raise ValueError(f"{tid}: missing dependency {dep}")
+            if dep == tid:
+                raise ValueError(f"{tid}: self dependency")
             indegree[tid] += 1
             successors[dep].append(tid)
 
@@ -326,32 +331,72 @@ def build_tasks() -> list[dict[str, Any]]:
     ]
 
 
+REFERENCE_GENERATED_AT = "2026-11-18T00:00:00+00:00"
+
+
 def build_plan(
     *,
     spec_version: str = SPEC_VERSION,
     contract_version: str = CONTRACT_VERSION,
-    plan_version: str = PLAN_VERSION,
+    plan_version: str | None = None,
     tasks: list[dict[str, Any]] | None = None,
+    generated_at: str | None = None,
 ) -> dict[str, Any]:
     selected = copy.deepcopy(tasks) if tasks is not None else build_tasks()
+    version = plan_version or PLAN_VERSION
     return {
+        "schema_version": "b01.plan.v1",
         "project_id": PROJECT_ID,
+        "title": "校园失物招领系统（参考固定任务包）",
         "spec_version": spec_version,
         "contract_version": contract_version,
-        "plan_version": plan_version,
-        "required_requirements": list(REQUIRED_REQUIREMENTS),
+        "plan_version": version,
         "generated_by": "B01 SpecPlannerAgent reference implementation",
+        # 固定参考包必须可逐字节复现，因此使用稳定时间戳而非当前时间。
+        "generated_at": generated_at or REFERENCE_GENERATED_AT,
+        "required_requirements": list(REQUIRED_REQUIREMENTS),
         "tasks": selected,
         "topological_order": topological_sort(selected),
+        "input_snapshot": _reference_snapshot(spec_version, contract_version, selected),
+    }
+
+
+def _reference_snapshot(spec_version: str, contract_version: str, tasks: list[dict[str, Any]]) -> dict[str, Any]:
+    """固定参考包的输入快照；用于与通用动态计划保持同一结构。"""
+    import hashlib
+    import json
+
+    payload = json.dumps(
+        {"spec_version": spec_version, "contract_version": contract_version, "tasks": tasks},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return {
+        "spec_source": "reference",
+        "spec_format": "json",
+        "spec_sha256": hashlib.sha256(payload).hexdigest(),
+        "contract_sha256": hashlib.sha256(
+            json.dumps({"contract_version": contract_version}, sort_keys=True).encode("utf-8")
+        ).hexdigest(),
+        "spec_version": spec_version,
+        "contract_version": contract_version,
+        "requirement_count": len(REQUIRED_REQUIREMENTS),
+        "design_entry_count": len(DESIGN_ENTRIES),
+        "contract_operation_count": 0,
+        "schema_version": "b01.spec.reference",
     }
 
 
 def build_traceability(plan: dict[str, Any]) -> dict[str, Any]:
     """生成 design_id → 需求/契约/测试/任务 的追溯映射。"""
     task_by_design: dict[str, list[str]] = {}
+    task_by_req: dict[str, list[str]] = {}
     for task in plan["tasks"]:
         for design_id in task["design_refs"]:
             task_by_design.setdefault(design_id, []).append(task["task_id"])
+        for req_id in task.get("req_refs", []):
+            task_by_req.setdefault(req_id, []).append(task["task_id"])
 
     items = []
     for entry in DESIGN_ENTRIES:
@@ -367,10 +412,29 @@ def build_traceability(plan: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
+    requirements = []
+    for req_id in REQUIRED_REQUIREMENTS:
+        requirements.append(
+            {
+                "req_id": req_id,
+                "title": req_id,
+                "priority": "must",
+                "design_refs": sorted(
+                    entry["design_id"] for entry in DESIGN_ENTRIES if req_id in entry["req_refs"]
+                ),
+                "task_refs": sorted(set(task_by_req.get(req_id, []))),
+            }
+        )
+    covered = sorted({req for task in plan["tasks"] for req in task.get("req_refs", [])})
     return {
         "plan_version": plan["plan_version"],
         "spec_version": plan["spec_version"],
         "contract_version": plan["contract_version"],
+        "project_id": plan.get("project_id"),
+        "input_snapshot": plan.get("input_snapshot"),
         "format": "design_id -> req_refs -> contract_refs -> test_refs -> task_refs",
         "items": items,
+        "requirements": requirements,
+        "covered_requirements": covered,
+        "uncovered_requirements": sorted(set(plan["required_requirements"]) - set(covered)),
     }

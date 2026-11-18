@@ -1,0 +1,306 @@
+{
+  "plan_version": "PLAN-campus-lost-found-v1.0",
+  "spec_version": "S1-v1.0",
+  "contract_version": "C1-v1.0",
+  "project_id": "campus-lost-found",
+  "input_snapshot": {
+    "spec_source": "inline",
+    "spec_format": "json",
+    "spec_sha256": "e86bfb16982a6138f70fe17b1d364a5cf25affbe3f9450afacc813aec484bcc5",
+    "contract_sha256": "2708709294dbef9a6aa1998e5802005ee945d3cfbae87af2cf2040783da45d18",
+    "spec_version": "S1-v1.0",
+    "contract_version": "C1-v1.0",
+    "requirement_count": 5,
+    "design_entry_count": 6,
+    "contract_operation_count": 11,
+    "schema_version": "b01.spec.v1"
+  },
+  "format": "design_id -> req_refs -> contract_refs -> test_refs -> task_refs",
+  "items": [
+    {
+      "design_id": "DS-AUTH-01",
+      "module": "用户与身份",
+      "req_refs": [
+        "LR-01",
+        "LR-05"
+      ],
+      "contract_refs": [
+        "register",
+        "login",
+        "logout"
+      ],
+      "test_refs": [
+        "TC-AUTH-01",
+        "TC-AUTH-02"
+      ],
+      "task_refs": [
+        "T01",
+        "T18",
+        "T22",
+        "T23",
+        "T24"
+      ],
+      "rule": "凭据以 Argon2id 哈希存储，任何公开响应不含 password_hash。"
+    },
+    {
+      "design_id": "DS-USER-01",
+      "module": "用户与身份",
+      "req_refs": [
+        "LR-05"
+      ],
+      "contract_refs": [
+        "get_me",
+        "update_me",
+        "list_my_posts",
+        "list_my_claims"
+      ],
+      "test_refs": [
+        "TC-USER-01"
+      ],
+      "task_refs": [
+        "T02",
+        "T22",
+        "T23",
+        "T24"
+      ],
+      "rule": "本人资料与本人记录只能由会话身份访问，越权返回 FORBIDDEN。"
+    },
+    {
+      "design_id": "DS-LOST-01",
+      "module": "失物发布与搜索",
+      "req_refs": [
+        "LR-02"
+      ],
+      "contract_refs": [
+        "publish_lost"
+      ],
+      "test_refs": [
+        "TC-P01",
+        "TC-P02",
+        "TC-P03"
+      ],
+      "task_refs": [
+        "T03",
+        "T19",
+        "T23",
+        "T24"
+      ],
+      "rule": "lost_at 必填且带时区；缺失、空值或非法格式拒绝且不写入。"
+    },
+    {
+      "design_id": "DS-LOST-02",
+      "module": "失物发布与搜索",
+      "req_refs": [
+        "LR-03"
+      ],
+      "contract_refs": [
+        "search_lost",
+        "get_lost"
+      ],
+      "test_refs": [
+        "TC-SEARCH-01"
+      ],
+      "task_refs": [
+        "T04",
+        "T20",
+        "T23",
+        "T24"
+      ],
+      "rule": "搜索与详情使用公开视图，page_size 限制在 1—100。"
+    },
+    {
+      "design_id": "DS-CLAIM-01",
+      "module": "认领申请",
+      "req_refs": [
+        "LR-04"
+      ],
+      "contract_refs": [
+        "create_claim"
+      ],
+      "test_refs": [
+        "TC-CLAIM-01",
+        "TC-CLAIM-02"
+      ],
+      "task_refs": [
+        "T05",
+        "T21",
+        "T23",
+        "T24"
+      ],
+      "rule": "禁止认领本人发布信息；(lost_item_id, applicant_id) 唯一约束防重复申请。"
+    },
+    {
+      "design_id": "DS-COMMON-01",
+      "module": "公共约束",
+      "req_refs": [
+        "LR-01",
+        "LR-02",
+        "LR-03",
+        "LR-04",
+        "LR-05"
+      ],
+      "contract_refs": [],
+      "test_refs": [
+        "TC-FLOW-01"
+      ],
+      "task_refs": [
+        "T06",
+        "T18",
+        "T19",
+        "T20",
+        "T21",
+        "T22",
+        "T23",
+        "T24"
+      ],
+      "rule": "统一响应信封：成功 {ok:true,data}，失败 {ok:false,error:{code,field,message}}。"
+    }
+  ],
+  "requirements": [
+    {
+      "req_id": "LR-01",
+      "title": "注册登录",
+      "priority": "must",
+      "design_refs": [
+        "DS-AUTH-01",
+        "DS-COMMON-01"
+      ],
+      "task_refs": [
+        "T01",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17",
+        "T18",
+        "T23",
+        "T24"
+      ]
+    },
+    {
+      "req_id": "LR-02",
+      "title": "发布失物",
+      "priority": "must",
+      "design_refs": [
+        "DS-COMMON-01",
+        "DS-LOST-01"
+      ],
+      "task_refs": [
+        "T03",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17",
+        "T19",
+        "T23",
+        "T24"
+      ]
+    },
+    {
+      "req_id": "LR-03",
+      "title": "关键词及地点搜索",
+      "priority": "must",
+      "design_refs": [
+        "DS-COMMON-01",
+        "DS-LOST-02"
+      ],
+      "task_refs": [
+        "T04",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17",
+        "T20",
+        "T23",
+        "T24"
+      ]
+    },
+    {
+      "req_id": "LR-04",
+      "title": "认领申请",
+      "priority": "must",
+      "design_refs": [
+        "DS-CLAIM-01",
+        "DS-COMMON-01"
+      ],
+      "task_refs": [
+        "T05",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17",
+        "T21",
+        "T23",
+        "T24"
+      ]
+    },
+    {
+      "req_id": "LR-05",
+      "title": "本人资料及本人记录",
+      "priority": "must",
+      "design_refs": [
+        "DS-AUTH-01",
+        "DS-COMMON-01",
+        "DS-USER-01"
+      ],
+      "task_refs": [
+        "T01",
+        "T02",
+        "T06",
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17",
+        "T22",
+        "T23",
+        "T24"
+      ]
+    }
+  ],
+  "covered_requirements": [
+    "LR-01",
+    "LR-02",
+    "LR-03",
+    "LR-04",
+    "LR-05"
+  ],
+  "uncovered_requirements": []
+}
