@@ -51,12 +51,12 @@
 | 通用规格输入 | `b01-spec-planner/src/b01/spec_input.py` | 支持任意系统的设计规格 JSON/Markdown，归一化为统一结构 |
 | 动态计划 | `b01-spec-planner/src/b01/dynamic_planner.py` | 按规格推导任务、DAG、拓扑序，不固定 T01—T11 |
 | 计划校验 | `b01-spec-planner/src/b01/plan_validator.py` | 结构、需求覆盖、产物归属、依赖环、版本一致性 |
-| 任务编排 API | `b02-workflow-agent/backend/task_api.py` | `task-plans/load`、`task-runs`、`step`、`run`、`events`、`dag`、`replay` |
-| 编排状态机 | `b02-workflow-agent/backend/task_orchestrator.py` | 九态、依赖检查、防重复派发、attempt_id、retry_count、有限重试、阻断传播 |
+| 任务编排 API | `b02-workflow-agent/backend/task_api.py` | `task-plans/load`、`task-runs`、`step`、`run`、`recover`、`events`、`dag`、`replay` |
+| 编排状态机 | `b02-workflow-agent/backend/task_orchestrator.py` | 九态、依赖检查、防重复派发、执行超时、有限重试、阻断传播、崩溃恢复 |
 | 状态持久化 | `b03/b03_implementation/task_state.py` | 运行/状态/尝试历史/事件/检查点，支持断点恢复与回放 |
 | 统一执行 Gateway | `b04-agent-integration/src/b04/gateway.py` | §5 输入输出契约，`mock` 与真实 runner 两种模式 |
 | 质量门 | `b06-quality-consensus/multiagent_quality/task_gate.py` | 九项必查、只返回判定与事件，不写状态 |
-| 任务 DAG 展示 | `frontend/src/` | 九态图例、依赖边、重试/耗时/阻塞、任务详情面板、真实接口接入 |
+| 工作流可观测性 | `frontend/src/` | 作业 1 需求共识、九态任务 DAG、执行控制、事件回溯、真实接口与成果导出 |
 | 闭环演示与验证 | `workflow_runtime/` | 一键跑通闭环 + 契约一致性检查 |
 
 ## 当前工作块
@@ -65,7 +65,7 @@
 - B02：任务编排器与讨论控制器（含开发任务编排 HTTP API）
 - B03：共享黑板、状态持久化与事件
 - B04：Agent 接入、统一执行 Gateway 与模型适配
-- B05：交互展示与结果导出（任务 DAG 视图）
+- B05：交互展示与结果导出（需求共识、任务 DAG、事件回溯）
 - B06：质量共识、测试证据与缺陷闭环（含开发任务质量门）
 
 ## 分支约定
@@ -158,15 +158,18 @@ npm run dev
 前端的“第二阶段入口：设计规格 → PM Agent → 编排器”可以直接填写规格路径，点击“从设计规格启动”
 创建真实任务运行；随后可用“推进一步”观察依赖调度，或用“运行至完成”执行完整闭环。
 
-## 课堂展示：从用户想法到任务 DAG
+## 课堂展示：从用户想法到事件回溯
 
-课堂展示可以按下面顺序完整走一遍：
+课堂展示可以在 B05 前端按下面顺序完整走一遍：
 
-1. 在 B02 页面输入“我想制作一个校园服务系统”或其他任意想法，点击创建运行。
-2. 点击“运行至人工介入”，展示多智能体讨论、建设方案和需求确认过程；勾选六名成员后发布 R1。
-3. 在 R1 已确认页面点击“进入第二阶段任务编排”。系统会把已确认 R1 转成带来源追溯的最小 design spec，并创建 `TASK-RUN-…`。
-4. 打开 B05 前端，切换到“真实接口”，填入生成的运行编号；点击“推进一步”观察依赖逐层放行，再点击“运行至完成”。
+1. 切换到“真实接口”，打开“需求共识 · 作业 1”，输入“我想制作一个校园服务系统”或其他任意想法并创建讨论。
+2. 点击“运行至人工介入”，展示 A—H 阶段、四角色观点、异议、Proposal 和共识评价；勾选六名成员后发布 R1。
+3. 在 R1 已确认页面点击“进入第二阶段任务编排”。系统会把已确认 R1 转成带来源追溯的最小 design spec，创建 `TASK-RUN-…`，并直接显示真实任务 DAG。
+4. 点击“推进一步”观察依赖逐层放行，演示暂停、继续和取消；需要完整闭环时再点击“运行至完成”。
 5. 展示任务 DAG、B01—B06 任务归属、完成计数、事件日志、质量门结果和可导出的快照/追溯表。
+6. 打开“执行事件回溯”，拖动进度或逐事件播放，点击 DAG 节点筛选该任务的历史事件，说明系统如何依据事件重建状态而不重新执行 Agent。
+
+不启动后端时，可直接用默认“模拟推演”展示三个视图；模拟快照同样由真实控制器和编排器生成。
 
 也可以跳过第一阶段，直接演示课堂要求的核心路径。启动两个服务后，在 B05 的“第二阶段入口”保留默认规格路径，点击“从设计规格启动”，再点击“运行至完成”：
 
@@ -218,6 +221,7 @@ python -m workflow_runtime pipeline --spec b01-spec-planner/docs/fixtures/lab-eq
 - [项目总览](docs/PROJECT_OVERVIEW.md)
 - [任务编排闭环契约](docs/TASK_ORCHESTRATION.md)
 - [第二阶段实施记录](docs/STAGE2_STATUS.md)
+- [课堂作业 3：五分钟演示与提交指南](docs/HOMEWORK3_DEMO.md)
 - [GitHub 协作与分支流程](docs/BRANCHING.md)
 - [集成运行说明](docs/INTEGRATION.md)
 
