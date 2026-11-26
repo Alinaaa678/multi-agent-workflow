@@ -83,6 +83,22 @@ export interface CreateRunFromSpecConfig {
   discussionRunId?: string;
 }
 
+export type TaskControlAction = 'step' | 'run' | 'pause' | 'resume' | 'cancel' | 'retry';
+
+export interface ControlAck {
+  request_id: string;
+  action: TaskControlAction;
+  accepted: boolean;
+  operator: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface TaskControlResponse {
+  ack?: ControlAck;
+  run: RunSnapshot;
+}
+
 export interface TaskApiResult {
   tasks: Task[];
   meta: {
@@ -95,6 +111,7 @@ export interface TaskApiResult {
     status: string;
     completed: number;
     total: number;
+    events_count: number;
   };
   dag: DagPayload;
   events: RunEvent[];
@@ -114,6 +131,14 @@ export function mapSnapshotTask(raw: Record<string, unknown>, source: DataSource
   const knownIssues = Array.isArray(raw.known_issues) ? raw.known_issues : [];
   const review = (raw.review ?? null) as Task['review'];
   const findings = review?.findings ?? [];
+  const executionResult = raw.result && typeof raw.result === 'object'
+    ? raw.result as Record<string, unknown>
+    : {};
+  const testResults = Array.isArray(executionResult.test_results) ? executionResult.test_results : [];
+  const resultLogs = Array.isArray(executionResult.logs)
+    ? executionResult.logs
+    : Array.isArray(raw.logs) ? raw.logs : [];
+  const evidenceRefs = asStringArray(raw.evidence_refs);
 
   return {
     task_id: String(raw.task_id ?? ''),
@@ -135,9 +160,20 @@ export function mapSnapshotTask(raw: Record<string, unknown>, source: DataSource
         desc: String(artifact.kind ?? ''),
       };
     }),
-    evidence: (Array.isArray(raw.attempts) ? raw.attempts : []).length
-      ? []
-      : asStringArray(raw.evidence_refs).map((ref) => ({ case_id: ref, passed: true, detail: '' })),
+    evidence: testResults.length > 0
+      ? testResults.map((item) => {
+        const test = item as Record<string, unknown>;
+        return {
+          case_id: String(test.test_id ?? ''),
+          passed: test.status === 'PASS',
+          detail: String(test.detail ?? (test.log_sha256 ? `日志摘要 ${String(test.log_sha256).slice(0, 12)}` : '')),
+        };
+      })
+      : evidenceRefs.map((ref) => ({
+        case_id: ref,
+        passed: raw.state === 'SUCCEEDED',
+        detail: '执行证据引用',
+      })),
     objections: knownIssues.concat(findings as unknown as Record<string, unknown>[]).map((item, index) => {
       const issue = item as Record<string, unknown>;
       return {
@@ -174,7 +210,7 @@ export function mapSnapshotTask(raw: Record<string, unknown>, source: DataSource
     acceptance: asStringArray(raw.acceptance),
     required_test_ids: asStringArray(raw.required_test_ids),
     candidate_commit: raw.candidate_commit ? String(raw.candidate_commit) : null,
-    logs: (Array.isArray(raw.logs) ? raw.logs : []).map((item) => {
+    logs: resultLogs.map((item) => {
       const log = item as Record<string, unknown>;
       return { name: String(log.name ?? ''), sha256: String(log.sha256 ?? '') };
     }),
@@ -236,12 +272,19 @@ export async function createTaskRunFromSpec(config: CreateRunFromSpecConfig): Pr
 
 export async function controlTaskRun(
   config: TaskApiConfig,
-  action: 'step' | 'run',
-  maxSteps = 200,
-): Promise<void> {
+  action: TaskControlAction,
+  options: { maxSteps?: number; taskId?: string; reason?: string } = {},
+): Promise<TaskControlResponse> {
   const base = config.baseUrl.replace(/\/+$/, '');
   const runId = encodeURIComponent(config.runId);
-  await postJson(`${base}/api/task-runs/${runId}/${action}`, action === 'run' ? { max_steps: maxSteps } : {});
+  const body: Record<string, unknown> = {
+    request_id: `CTRL-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    operator: 'B05-classroom-operator',
+  };
+  if (action === 'run') body.max_steps = options.maxSteps ?? 200;
+  if (options.taskId) body.task_id = options.taskId;
+  if (options.reason) body.reason = options.reason;
+  return postJson<TaskControlResponse>(`${base}/api/task-runs/${runId}/${action}`, body);
 }
 
 /** 拉取一个任务运行的真实快照 + DAG + 事件。 */
@@ -276,6 +319,7 @@ export async function fetchTaskRun(
       status: run.status,
       completed: run.completed,
       total: run.total,
+      events_count: run.events_count,
     },
     dag: dagResponse.dag,
     events: eventsResponse.events ?? [],
@@ -283,7 +327,7 @@ export async function fetchTaskRun(
 }
 
 /** 用事件流把 DAG 节点状态覆盖为「当前视图」，用于回放演示。 */
-export function statusFromEvents(events: RunEvent[]): Record<string, TaskStatus> {
+export function statusFromEvents(events: Pick<RunEvent, 'type' | 'task_id'>[]): Record<string, TaskStatus> {
   const map: Record<string, TaskStatus> = {};
   const transitions: Record<string, TaskStatus> = {
     TASK_READY: 'READY',
@@ -297,6 +341,7 @@ export function statusFromEvents(events: RunEvent[]): Record<string, TaskStatus>
     TASK_RETRY_SCHEDULED: 'RETRYING',
     TASK_BLOCKED: 'BLOCKED',
     TASK_FAILED: 'FAILED',
+    TASK_WAITING_DEPENDENCY: 'WAITING_DEPENDENCY',
   };
   for (const event of events) {
     const target = transitions[event.type];

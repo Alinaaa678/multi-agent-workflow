@@ -1,0 +1,964 @@
+{
+  "generated_at": "2026-11-26T01:11:44.221774+00:00",
+  "note": "由真实 discussion_controller 完成的正常收敛历史快照；模拟模式只读，不代表实时接口连接。",
+  "workflow": {
+    "stages": [
+      {
+        "id": "INTAKE",
+        "code": "A",
+        "name": "框定 Idea",
+        "owner": "WorkflowAgent",
+        "action": "整理问题、假设、约束与未决项。"
+      },
+      {
+        "id": "DIVERGE",
+        "code": "B",
+        "name": "独立发散",
+        "owner": "B04 角色",
+        "action": "四个角色独立生成观点，彼此不可见。"
+      },
+      {
+        "id": "CLUSTER",
+        "code": "C",
+        "name": "聚类整合",
+        "owner": "WorkflowAgent",
+        "action": "按来源整理观点，保留原始意见。"
+      },
+      {
+        "id": "CRITIQUE",
+        "code": "D",
+        "name": "结构化批判",
+        "owner": "B04 + B06",
+        "action": "记录赞同、反对、有条件赞同及具体异议。"
+      },
+      {
+        "id": "EVALUATE",
+        "code": "E",
+        "name": "共识评价",
+        "owner": "B06 → B02",
+        "action": "消费评价结果，决定回路、暂停或前进。"
+      },
+      {
+        "id": "PROPOSAL_REVIEW",
+        "code": "F",
+        "name": "Proposal 审阅",
+        "owner": "B04 + B06",
+        "action": "生成草案并收集角色 sign-off。"
+      },
+      {
+        "id": "HUMAN_CONFIRMATION",
+        "code": "G",
+        "name": "需求确认",
+        "owner": "B01 人类门槛",
+        "action": "六人逐项确认后才能发布 R1。"
+      },
+      {
+        "id": "COMPLETED",
+        "code": "H",
+        "name": "完成",
+        "owner": "WorkflowAgent",
+        "action": "输出 Proposal、R1、未决项与回放日志。"
+      }
+    ],
+    "transitions": [
+      {
+        "from": "INTAKE",
+        "event": "frame_completed",
+        "guard": "问题定义已记录",
+        "to": "DIVERGE"
+      },
+      {
+        "from": "DIVERGE",
+        "event": "independent_completed",
+        "guard": "至少四个不同角色成功提交",
+        "to": "CLUSTER"
+      },
+      {
+        "from": "CLUSTER",
+        "event": "cluster_completed",
+        "guard": "观点来源完整",
+        "to": "CRITIQUE"
+      },
+      {
+        "from": "CRITIQUE",
+        "event": "critique_completed",
+        "guard": "立场和异议结构合法",
+        "to": "EVALUATE"
+      },
+      {
+        "from": "EVALUATE",
+        "event": "revision_required",
+        "guard": "有开放异议且 round < max_rounds",
+        "to": "CRITIQUE"
+      },
+      {
+        "from": "EVALUATE",
+        "event": "human_required",
+        "guard": "高影响价值分歧未解决",
+        "to": "EVALUATE / WAITING_HUMAN"
+      },
+      {
+        "from": "EVALUATE",
+        "event": "budget_exhausted",
+        "guard": "有开放异议且达到轮数上限",
+        "to": "EVALUATE / STOPPED"
+      },
+      {
+        "from": "EVALUATE",
+        "event": "discussion_converged",
+        "guard": "无开放异议",
+        "to": "PROPOSAL_REVIEW"
+      },
+      {
+        "from": "PROPOSAL_REVIEW",
+        "event": "review_rejected",
+        "guard": "有 Pending/Disagree 且预算允许",
+        "to": "CRITIQUE"
+      },
+      {
+        "from": "PROPOSAL_REVIEW",
+        "event": "review_completed",
+        "guard": "四角色 sign-off 完成且无阻断异议",
+        "to": "HUMAN_CONFIRMATION"
+      },
+      {
+        "from": "HUMAN_CONFIRMATION",
+        "event": "requirements_confirmed",
+        "guard": "B01 校验六人确认与需求验收字段",
+        "to": "COMPLETED"
+      }
+    ]
+  },
+  "run": {
+    "run_id": "RUN-HW1-NORMAL",
+    "idea": "设计一个校园失物招领系统，支持发布、检索和认领",
+    "constraints": "首期保留少数意见；未经六人确认不得发布 R1；优先验证流程控制而非真实模型效果。",
+    "scenario": "normal",
+    "max_rounds": 2,
+    "round": 2,
+    "stage": "COMPLETED",
+    "status": "COMPLETED",
+    "pause_requested": false,
+    "created_at": "2026-11-26T09:11:44+08:00",
+    "updated_at": "2026-11-26T09:11:44+08:00",
+    "events": [
+      {
+        "event_id": "E001",
+        "sequence": 1,
+        "type": "RUN_CREATED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "scenario": "normal",
+          "max_rounds": 2
+        },
+        "after": {
+          "stage": "INTAKE",
+          "status": "READY",
+          "round": 0
+        }
+      },
+      {
+        "event_id": "E002",
+        "sequence": 2,
+        "type": "STAGE_STARTED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "stage": "INTAKE"
+        },
+        "after": {
+          "stage": "INTAKE",
+          "status": "RUNNING",
+          "round": 0
+        }
+      },
+      {
+        "event_id": "E003",
+        "sequence": 3,
+        "type": "IDEA_FRAMED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "assumptions": 2,
+          "from": "INTAKE",
+          "to": "DIVERGE"
+        },
+        "after": {
+          "stage": "DIVERGE",
+          "status": "READY",
+          "round": 0
+        }
+      },
+      {
+        "event_id": "E004",
+        "sequence": 4,
+        "type": "STAGE_STARTED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "stage": "DIVERGE"
+        },
+        "after": {
+          "stage": "DIVERGE",
+          "status": "RUNNING",
+          "round": 0
+        }
+      },
+      {
+        "event_id": "E005",
+        "sequence": 5,
+        "type": "INDEPENDENT_DIVERGENCE_COMPLETED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "roles": [
+            "产品经理",
+            "用户研究员",
+            "技术架构师",
+            "质疑者"
+          ],
+          "isolated": true,
+          "from": "DIVERGE",
+          "to": "CLUSTER"
+        },
+        "after": {
+          "stage": "CLUSTER",
+          "status": "READY",
+          "round": 0
+        }
+      },
+      {
+        "event_id": "E006",
+        "sequence": 6,
+        "type": "STAGE_STARTED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "stage": "CLUSTER"
+        },
+        "after": {
+          "stage": "CLUSTER",
+          "status": "RUNNING",
+          "round": 0
+        }
+      },
+      {
+        "event_id": "E007",
+        "sequence": 7,
+        "type": "CLAIMS_CLUSTERED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "cluster_count": 4,
+          "from": "CLUSTER",
+          "to": "CRITIQUE"
+        },
+        "after": {
+          "stage": "CRITIQUE",
+          "status": "READY",
+          "round": 0
+        }
+      },
+      {
+        "event_id": "E008",
+        "sequence": 8,
+        "type": "ROUND_STARTED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "round": 1
+        },
+        "after": {
+          "stage": "CRITIQUE",
+          "status": "READY",
+          "round": 1
+        }
+      },
+      {
+        "event_id": "E009",
+        "sequence": 9,
+        "type": "STAGE_STARTED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "stage": "CRITIQUE"
+        },
+        "after": {
+          "stage": "CRITIQUE",
+          "status": "RUNNING",
+          "round": 1
+        }
+      },
+      {
+        "event_id": "E010",
+        "sequence": 10,
+        "type": "CRITIQUE_COMPLETED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "new_objections": 2,
+          "from": "CRITIQUE",
+          "to": "EVALUATE"
+        },
+        "after": {
+          "stage": "EVALUATE",
+          "status": "READY",
+          "round": 1
+        }
+      },
+      {
+        "event_id": "E011",
+        "sequence": 11,
+        "type": "STAGE_STARTED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "stage": "EVALUATE"
+        },
+        "after": {
+          "stage": "EVALUATE",
+          "status": "RUNNING",
+          "round": 1
+        }
+      },
+      {
+        "event_id": "E012",
+        "sequence": 12,
+        "type": "CONSENSUS_EVALUATED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "open_count": 2,
+          "high_count": 0,
+          "new_count": 2,
+          "needs_human": false,
+          "can_proceed": false,
+          "reason": "仍有 2 项开放异议。",
+          "stance_counts": {
+            "Agree": 0,
+            "Conditional": 3,
+            "Disagree": 1,
+            "Pending": 0
+          }
+        },
+        "after": {
+          "stage": "EVALUATE",
+          "status": "RUNNING",
+          "round": 1
+        }
+      },
+      {
+        "event_id": "E013",
+        "sequence": 13,
+        "type": "CRITIQUE_LOOP",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "from": "EVALUATE",
+          "to": "CRITIQUE",
+          "next_round": 2
+        },
+        "after": {
+          "stage": "CRITIQUE",
+          "status": "READY",
+          "round": 2
+        }
+      },
+      {
+        "event_id": "E014",
+        "sequence": 14,
+        "type": "STAGE_STARTED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "stage": "CRITIQUE"
+        },
+        "after": {
+          "stage": "CRITIQUE",
+          "status": "RUNNING",
+          "round": 2
+        }
+      },
+      {
+        "event_id": "E015",
+        "sequence": 15,
+        "type": "CRITIQUE_COMPLETED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "new_objections": 0,
+          "from": "CRITIQUE",
+          "to": "EVALUATE"
+        },
+        "after": {
+          "stage": "EVALUATE",
+          "status": "READY",
+          "round": 2
+        }
+      },
+      {
+        "event_id": "E016",
+        "sequence": 16,
+        "type": "STAGE_STARTED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "stage": "EVALUATE"
+        },
+        "after": {
+          "stage": "EVALUATE",
+          "status": "RUNNING",
+          "round": 2
+        }
+      },
+      {
+        "event_id": "E017",
+        "sequence": 17,
+        "type": "CONSENSUS_EVALUATED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "open_count": 0,
+          "high_count": 0,
+          "new_count": 0,
+          "needs_human": false,
+          "can_proceed": true,
+          "reason": "开放异议均已处理，可进入 Proposal 审阅。",
+          "stance_counts": {
+            "Agree": 4,
+            "Conditional": 0,
+            "Disagree": 0,
+            "Pending": 0
+          }
+        },
+        "after": {
+          "stage": "EVALUATE",
+          "status": "RUNNING",
+          "round": 2
+        }
+      },
+      {
+        "event_id": "E018",
+        "sequence": 18,
+        "type": "DISCUSSION_CONVERGED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "reason": "开放异议均已处理，可进入 Proposal 审阅。",
+          "from": "EVALUATE",
+          "to": "PROPOSAL_REVIEW"
+        },
+        "after": {
+          "stage": "PROPOSAL_REVIEW",
+          "status": "READY",
+          "round": 2
+        }
+      },
+      {
+        "event_id": "E019",
+        "sequence": 19,
+        "type": "STAGE_STARTED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "stage": "PROPOSAL_REVIEW"
+        },
+        "after": {
+          "stage": "PROPOSAL_REVIEW",
+          "status": "RUNNING",
+          "round": 2
+        }
+      },
+      {
+        "event_id": "E020",
+        "sequence": 20,
+        "type": "PROPOSAL_DRAFTED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "length": 262
+        },
+        "after": {
+          "stage": "PROPOSAL_REVIEW",
+          "status": "RUNNING",
+          "round": 2
+        }
+      },
+      {
+        "event_id": "E021",
+        "sequence": 21,
+        "type": "PROPOSAL_REVIEW_EVALUATED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "can_proceed": true,
+          "needs_human": false,
+          "reason": "角色审阅完成且无阻断异议。",
+          "signoff_count": 4
+        },
+        "after": {
+          "stage": "PROPOSAL_REVIEW",
+          "status": "RUNNING",
+          "round": 2
+        }
+      },
+      {
+        "event_id": "E022",
+        "sequence": 22,
+        "type": "REQUIREMENTS_CONFIRMATION_REQUIRED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "from": "PROPOSAL_REVIEW",
+          "to": "HUMAN_CONFIRMATION",
+          "requirement_count": 3
+        },
+        "after": {
+          "stage": "HUMAN_CONFIRMATION",
+          "status": "WAITING_HUMAN",
+          "round": 2
+        }
+      },
+      {
+        "event_id": "E023",
+        "sequence": 23,
+        "type": "R1_PUBLISHED",
+        "time": "2026-11-26T09:11:44+08:00",
+        "payload": {
+          "version": "R1",
+          "confirmed_by": [
+            "成员 A",
+            "成员 B",
+            "成员 C",
+            "成员 D",
+            "成员 E",
+            "成员 F"
+          ]
+        },
+        "after": {
+          "stage": "COMPLETED",
+          "status": "COMPLETED",
+          "round": 2
+        }
+      }
+    ],
+    "blackboard": {
+      "idea": "设计一个校园失物招领系统，支持发布、检索和认领",
+      "constraints": "首期保留少数意见；未经六人确认不得发布 R1；优先验证流程控制而非真实模型效果。",
+      "problem": "围绕“设计一个校园失物招领系统，支持发布、检索和认领”形成可评审的 MVP 建设方案。",
+      "assumptions": [
+        "目标用户与真实使用频率尚待验证",
+        "团队优先实现可验证的最小流程"
+      ],
+      "claims": [
+        {
+          "role": "产品经理",
+          "claim": "先把核心价值、MVP 范围和非目标写清楚，避免未经评审持续扩张功能。",
+          "reason": "该观点只来自产品经理的专业职责，首轮未读取其他角色答案。",
+          "evidence": "当前仅有用户输入，无外部事实证据。",
+          "assumptions": [
+            "输入想法具有进一步评审价值"
+          ],
+          "impact": "影响 Proposal 的范围、风险与验证计划。",
+          "claim_id": "C001",
+          "round": 1
+        },
+        {
+          "role": "用户研究员",
+          "claim": "目标用户、场景频率和痛点真实性仍需要用户证据，不能把角色推测写成事实。",
+          "reason": "该观点只来自用户研究员的专业职责，首轮未读取其他角色答案。",
+          "evidence": "当前仅有用户输入，无外部事实证据。",
+          "assumptions": [
+            "输入想法具有进一步评审价值"
+          ],
+          "impact": "影响 Proposal 的范围、风险与验证计划。",
+          "claim_id": "C002",
+          "round": 1
+        },
+        {
+          "role": "技术架构师",
+          "claim": "采用明确接口和可替换适配器实现基础流程，优先控制依赖、成本与可测试性。",
+          "reason": "该观点只来自技术架构师的专业职责，首轮未读取其他角色答案。",
+          "evidence": "当前仅有用户输入，无外部事实证据。",
+          "assumptions": [
+            "输入想法具有进一步评审价值"
+          ],
+          "impact": "影响 Proposal 的范围、风险与验证计划。",
+          "claim_id": "C003",
+          "round": 1
+        },
+        {
+          "role": "质疑者",
+          "claim": "需要主动检查隐私、权限、失败路径和范围假设，防止多个角色互相附和形成假共识。",
+          "reason": "该观点只来自质疑者的专业职责，首轮未读取其他角色答案。",
+          "evidence": "当前仅有用户输入，无外部事实证据。",
+          "assumptions": [
+            "输入想法具有进一步评审价值"
+          ],
+          "impact": "影响 Proposal 的范围、风险与验证计划。",
+          "claim_id": "C004",
+          "round": 1
+        }
+      ],
+      "clusters": [
+        {
+          "cluster_id": "CL-01",
+          "theme": "产品经理",
+          "claim_ids": [
+            "C001"
+          ]
+        },
+        {
+          "cluster_id": "CL-02",
+          "theme": "用户研究员",
+          "claim_ids": [
+            "C002"
+          ]
+        },
+        {
+          "cluster_id": "CL-03",
+          "theme": "技术架构师",
+          "claim_ids": [
+            "C003"
+          ]
+        },
+        {
+          "cluster_id": "CL-04",
+          "theme": "质疑者",
+          "claim_ids": [
+            "C004"
+          ]
+        }
+      ],
+      "objections": [
+        {
+          "raised_by": "质疑者",
+          "target_id": "C001",
+          "category": "fact",
+          "content": "核心价值成立所需的用户证据尚未提供，需要把未知项保留到报告。",
+          "severity": "medium",
+          "evidence": "当前没有用户访谈或检索证据。",
+          "status": "resolved",
+          "objection_id": "O001",
+          "round": 1,
+          "response": "已补充适用范围、验证方式与责任边界。",
+          "resolution_ref": null
+        },
+        {
+          "raised_by": "技术架构师",
+          "target_id": "C004",
+          "category": "tradeoff",
+          "content": "需要明确基础版的失败处理和实现边界，否则验收成本不可估计。",
+          "severity": "medium",
+          "evidence": "设计约束中尚未列出完整失败矩阵。",
+          "status": "resolved",
+          "objection_id": "O002",
+          "round": 1,
+          "response": "已补充适用范围、验证方式与责任边界。",
+          "resolution_ref": null
+        }
+      ],
+      "stances": [
+        {
+          "role": "产品经理",
+          "stance": "Agree",
+          "reason": "上一轮异议已回应，当前无新增阻断理由。"
+        },
+        {
+          "role": "用户研究员",
+          "stance": "Agree",
+          "reason": "上一轮异议已回应，当前无新增阻断理由。"
+        },
+        {
+          "role": "技术架构师",
+          "stance": "Agree",
+          "reason": "上一轮异议已回应，当前无新增阻断理由。"
+        },
+        {
+          "role": "质疑者",
+          "stance": "Agree",
+          "reason": "上一轮异议已回应，当前无新增阻断理由。"
+        }
+      ],
+      "decisions": [],
+      "open_questions": [
+        "哪些价值取舍需要由六名成员最终确认？"
+      ],
+      "proposal_draft": "# Proposal：设计一个校园失物招领系统，支持发布、检索和认领\n\n## 背景与问题\n形成范围明确、可验证、保留分歧的最小建设方案。\n\n## 目标用户与价值\n目标用户及使用频率仍需验证；首期价值以可观察的核心流程为准。\n\n## MVP 范围与非目标\n仅纳入经评审的核心能力；证据不足或未经确认的功能不进入基线。\n\n## 技术方案概要\n使用职责明确的角色适配器、结构化黑板和受控 Workflow；模型输出不代替质量证据。\n\n## 风险与成功指标\n重点检查隐私、权限、成本、失败路径；以规定用例和人工评审记录作为阶段证据。",
+      "signoffs": [
+        {
+          "role": "产品经理",
+          "stance": "Agree",
+          "reason": "已阅读 Proposal、未决项和保留分歧，同意提交人类需求确认。"
+        },
+        {
+          "role": "用户研究员",
+          "stance": "Agree",
+          "reason": "已阅读 Proposal、未决项和保留分歧，同意提交人类需求确认。"
+        },
+        {
+          "role": "技术架构师",
+          "stance": "Agree",
+          "reason": "已阅读 Proposal、未决项和保留分歧，同意提交人类需求确认。"
+        },
+        {
+          "role": "质疑者",
+          "stance": "Agree",
+          "reason": "已阅读 Proposal、未决项和保留分歧，同意提交人类需求确认。"
+        }
+      ],
+      "requirements_draft": {
+        "version": "R-draft",
+        "status": "IN_REVIEW",
+        "requirements": [
+          {
+            "req_id": "REQ-01",
+            "description": "核心流程必须限定在已评审的 MVP 范围内。",
+            "priority": "Must",
+            "acceptance": "范围外功能不进入当前基线。",
+            "status": "CONFIRMED"
+          },
+          {
+            "req_id": "REQ-02",
+            "description": "关键假设、风险和未决分歧必须保留并可追溯。",
+            "priority": "Must",
+            "acceptance": "报告可查看未决项、少数意见及处理状态。",
+            "status": "CONFIRMED"
+          },
+          {
+            "req_id": "REQ-03",
+            "description": "核心行为的验收条件必须可观察。",
+            "priority": "Must",
+            "acceptance": "每项需求均有明确验收条件并经六人确认。",
+            "status": "CONFIRMED"
+          }
+        ],
+        "open_questions": [
+          "哪些价值取舍需要由六名成员最终确认？"
+        ],
+        "decision_refs": []
+      },
+      "r1": {
+        "version": "R1",
+        "status": "CONFIRMED",
+        "requirements": [
+          {
+            "req_id": "REQ-01",
+            "description": "核心流程必须限定在已评审的 MVP 范围内。",
+            "priority": "Must",
+            "acceptance": "范围外功能不进入当前基线。",
+            "status": "CONFIRMED"
+          },
+          {
+            "req_id": "REQ-02",
+            "description": "关键假设、风险和未决分歧必须保留并可追溯。",
+            "priority": "Must",
+            "acceptance": "报告可查看未决项、少数意见及处理状态。",
+            "status": "CONFIRMED"
+          },
+          {
+            "req_id": "REQ-03",
+            "description": "核心行为的验收条件必须可观察。",
+            "priority": "Must",
+            "acceptance": "每项需求均有明确验收条件并经六人确认。",
+            "status": "CONFIRMED"
+          }
+        ],
+        "confirmed_by": [
+          "成员 A",
+          "成员 B",
+          "成员 C",
+          "成员 D",
+          "成员 E",
+          "成员 F"
+        ]
+      }
+    },
+    "latest_consensus": {
+      "can_proceed": true,
+      "needs_human": false,
+      "reason": "角色审阅完成且无阻断异议。",
+      "signoff_count": 4
+    },
+    "failure": null
+  },
+  "replay": {
+    "passed": true,
+    "event_count": 23,
+    "replayed_state": {
+      "stage": "COMPLETED",
+      "status": "COMPLETED",
+      "round": 2
+    },
+    "checkpoint_state": {
+      "stage": "COMPLETED",
+      "status": "COMPLETED",
+      "round": 2
+    },
+    "timeline": [
+      {
+        "sequence": 1,
+        "event_id": "E001",
+        "type": "RUN_CREATED",
+        "stage": "INTAKE",
+        "status": "READY",
+        "round": 0
+      },
+      {
+        "sequence": 2,
+        "event_id": "E002",
+        "type": "STAGE_STARTED",
+        "stage": "INTAKE",
+        "status": "RUNNING",
+        "round": 0
+      },
+      {
+        "sequence": 3,
+        "event_id": "E003",
+        "type": "IDEA_FRAMED",
+        "stage": "DIVERGE",
+        "status": "READY",
+        "round": 0
+      },
+      {
+        "sequence": 4,
+        "event_id": "E004",
+        "type": "STAGE_STARTED",
+        "stage": "DIVERGE",
+        "status": "RUNNING",
+        "round": 0
+      },
+      {
+        "sequence": 5,
+        "event_id": "E005",
+        "type": "INDEPENDENT_DIVERGENCE_COMPLETED",
+        "stage": "CLUSTER",
+        "status": "READY",
+        "round": 0
+      },
+      {
+        "sequence": 6,
+        "event_id": "E006",
+        "type": "STAGE_STARTED",
+        "stage": "CLUSTER",
+        "status": "RUNNING",
+        "round": 0
+      },
+      {
+        "sequence": 7,
+        "event_id": "E007",
+        "type": "CLAIMS_CLUSTERED",
+        "stage": "CRITIQUE",
+        "status": "READY",
+        "round": 0
+      },
+      {
+        "sequence": 8,
+        "event_id": "E008",
+        "type": "ROUND_STARTED",
+        "stage": "CRITIQUE",
+        "status": "READY",
+        "round": 1
+      },
+      {
+        "sequence": 9,
+        "event_id": "E009",
+        "type": "STAGE_STARTED",
+        "stage": "CRITIQUE",
+        "status": "RUNNING",
+        "round": 1
+      },
+      {
+        "sequence": 10,
+        "event_id": "E010",
+        "type": "CRITIQUE_COMPLETED",
+        "stage": "EVALUATE",
+        "status": "READY",
+        "round": 1
+      },
+      {
+        "sequence": 11,
+        "event_id": "E011",
+        "type": "STAGE_STARTED",
+        "stage": "EVALUATE",
+        "status": "RUNNING",
+        "round": 1
+      },
+      {
+        "sequence": 12,
+        "event_id": "E012",
+        "type": "CONSENSUS_EVALUATED",
+        "stage": "EVALUATE",
+        "status": "RUNNING",
+        "round": 1
+      },
+      {
+        "sequence": 13,
+        "event_id": "E013",
+        "type": "CRITIQUE_LOOP",
+        "stage": "CRITIQUE",
+        "status": "READY",
+        "round": 2
+      },
+      {
+        "sequence": 14,
+        "event_id": "E014",
+        "type": "STAGE_STARTED",
+        "stage": "CRITIQUE",
+        "status": "RUNNING",
+        "round": 2
+      },
+      {
+        "sequence": 15,
+        "event_id": "E015",
+        "type": "CRITIQUE_COMPLETED",
+        "stage": "EVALUATE",
+        "status": "READY",
+        "round": 2
+      },
+      {
+        "sequence": 16,
+        "event_id": "E016",
+        "type": "STAGE_STARTED",
+        "stage": "EVALUATE",
+        "status": "RUNNING",
+        "round": 2
+      },
+      {
+        "sequence": 17,
+        "event_id": "E017",
+        "type": "CONSENSUS_EVALUATED",
+        "stage": "EVALUATE",
+        "status": "RUNNING",
+        "round": 2
+      },
+      {
+        "sequence": 18,
+        "event_id": "E018",
+        "type": "DISCUSSION_CONVERGED",
+        "stage": "PROPOSAL_REVIEW",
+        "status": "READY",
+        "round": 2
+      },
+      {
+        "sequence": 19,
+        "event_id": "E019",
+        "type": "STAGE_STARTED",
+        "stage": "PROPOSAL_REVIEW",
+        "status": "RUNNING",
+        "round": 2
+      },
+      {
+        "sequence": 20,
+        "event_id": "E020",
+        "type": "PROPOSAL_DRAFTED",
+        "stage": "PROPOSAL_REVIEW",
+        "status": "RUNNING",
+        "round": 2
+      },
+      {
+        "sequence": 21,
+        "event_id": "E021",
+        "type": "PROPOSAL_REVIEW_EVALUATED",
+        "stage": "PROPOSAL_REVIEW",
+        "status": "RUNNING",
+        "round": 2
+      },
+      {
+        "sequence": 22,
+        "event_id": "E022",
+        "type": "REQUIREMENTS_CONFIRMATION_REQUIRED",
+        "stage": "HUMAN_CONFIRMATION",
+        "status": "WAITING_HUMAN",
+        "round": 2
+      },
+      {
+        "sequence": 23,
+        "event_id": "E023",
+        "type": "R1_PUBLISHED",
+        "stage": "COMPLETED",
+        "status": "COMPLETED",
+        "round": 2
+      }
+    ]
+  }
+}

@@ -137,6 +137,24 @@ async function main() {
         (blocked || nodes[0])?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       })()
     `);
+
+    await shoot(cdp, null, BASE, join(OUT_DIR, 'discussion-consensus.png'), `
+      Array.from(document.querySelectorAll('.workflow-nav button')).find((b) => b.textContent.includes('需求共识'))?.click()
+    `);
+
+    await shoot(cdp, null, BASE, join(OUT_DIR, 'execution-replay.png'), `
+      (() => {
+        Array.from(document.querySelectorAll('.workflow-nav button')).find((b) => b.textContent.includes('执行事件回溯'))?.click();
+        window.setTimeout(() => {
+          const start = Array.from(document.querySelectorAll('.replay-buttons button')).find((b) => b.textContent === '起点');
+          start?.click();
+          window.setTimeout(() => {
+            const next = Array.from(document.querySelectorAll('.replay-buttons button')).find((b) => b.textContent === '下一事件');
+            for (let index = 0; index < 72; index += 1) next?.click();
+          }, 250);
+        }, 500);
+      })()
+    `);
     socket.close();
   } finally {
     child.kill();

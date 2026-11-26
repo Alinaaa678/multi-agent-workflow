@@ -25,6 +25,10 @@ const CHROME_CANDIDATES = [
 ];
 const PORT = 9333;
 const profile = mkdtempSync(join(tmpdir(), 'b05-smoke-'));
+const consoleErrors = [];
+const httpErrors = [];
+let requestCount = 0;
+let responseBytes = 0;
 let failures = 0;
 
 function check(condition, message, detail = '') {
@@ -58,6 +62,16 @@ class Cdp {
     this.pending = new Map();
     socket.addEventListener('message', (event) => {
       const message = JSON.parse(event.data);
+      if (message.method === 'Runtime.exceptionThrown') consoleErrors.push(message.params.exceptionDetails.text);
+      if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') {
+        consoleErrors.push(message.params.args.map((arg) => arg.value ?? arg.description ?? '').join(' '));
+      }
+      if (message.method === 'Network.responseReceived') {
+        requestCount += 1;
+        const { status, url } = message.params.response;
+        if (status >= 400) httpErrors.push(`${status} ${url}`);
+      }
+      if (message.method === 'Network.loadingFinished') responseBytes += message.params.encodedDataLength || 0;
       const entry = this.pending.get(message.id);
       if (entry) {
         this.pending.delete(message.id);
@@ -110,6 +124,7 @@ async function openPage(cdp, url) {
   };
   await page.send('Page.enable');
   await page.send('Runtime.enable');
+  await page.send('Network.enable');
   await page.send('Page.navigate', { url });
   await sleep(2500);
   return page;
@@ -139,6 +154,11 @@ async function main() {
   try {
     const cdp = await connect();
     await verifySuccess(cdp);
+    await verifyDiscussion(cdp);
+    await verifyReplay(cdp);
+    check(consoleErrors.length === 0, '三个核心视图无浏览器控制台错误', consoleErrors.join(' | '));
+    check(httpErrors.length === 0, '三个核心视图无 HTTP 4xx/5xx 资源请求', httpErrors.join(' | '));
+    console.log(`  INFO 核心视图资源请求 ${requestCount} 次，传输约 ${(responseBytes / 1024).toFixed(1)} KiB`);
     await verifyFailure(cdp);
     await verifyDetailPanel(cdp);
     await verifyRealError(cdp);
@@ -174,6 +194,67 @@ async function verifySuccess(cdp) {
 
   const badNodes = await page.evaluate(`document.querySelectorAll('.react-flow__node').length - 24`);
   check(badNodes === 0, `节点数与计划一致 = 24（偏差 ${badNodes}）`);
+}
+
+async function verifyDiscussion(cdp) {
+  console.log('\n[作业一：讨论与共识可视化]');
+  const page = await openPage(cdp, BASE);
+  await page.evaluate(`Array.from(document.querySelectorAll('.workflow-nav button')).find((b) => b.textContent.includes('需求共识'))?.click()`);
+  await sleep(700);
+  let text = await page.evaluate('document.body.innerText');
+  check(text.includes('需求讨论与共识收敛'), '作业一视图标题');
+  check(text.includes('RUN-HW1-NORMAL'), '展示真实控制器生成的讨论运行编号');
+  check(await page.evaluate(`document.querySelectorAll('.discussion-stages li').length`) === 8, 'A—H 八个讨论阶段完整');
+  check(await page.evaluate(`document.querySelectorAll('.claim-item').length`) === 4, '四角色独立观点完整');
+  check(await page.evaluate(`document.querySelectorAll('.discussion-objection').length`) >= 2, '展示结构化异议与处理状态');
+
+  await page.evaluate(`Array.from(document.querySelectorAll('.discussion-tabs button')).find((b) => b.textContent.includes('Proposal'))?.click()`);
+  await sleep(400);
+  text = await page.evaluate('document.body.innerText');
+  check(text.includes('REQ-01') && text.includes('CONFIRMED'), 'Proposal 与 R1 需求基线展示');
+  check(text.includes('确认成员') && text.includes('成员 F'), '六人确认记录展示');
+
+  await page.evaluate(`Array.from(document.querySelectorAll('.discussion-tabs button')).find((b) => b.textContent.includes('讨论事件'))?.click()`);
+  await sleep(400);
+  text = await page.evaluate('document.body.innerText');
+  check(text.includes('回放校验通过'), '讨论事件回放校验结果展示');
+  check(await page.evaluate(`document.querySelectorAll('.discussion-event-list article').length`) === 23, '讨论事件时间线完整');
+}
+
+async function verifyReplay(cdp) {
+  console.log('\n[作业三：执行事件回溯]');
+  const page = await openPage(cdp, BASE);
+  await page.evaluate(`Array.from(document.querySelectorAll('.workflow-nav button')).find((b) => b.textContent.includes('执行事件回溯'))?.click()`);
+  await sleep(900);
+  let text = await page.evaluate('document.body.innerText');
+  check(text.includes('按有序事件重建 DAG 历史状态'), '回溯视图说明渲染');
+  check(text.includes('事件序列连续'), '事件序列连续性校验');
+  check(await page.evaluate(`document.querySelectorAll('.react-flow__node').length`) === 24, '回放 DAG 节点完整');
+  check(await page.evaluate(`document.querySelector('input[aria-label="回放事件位置"]').value`) === '186', '默认定位最新事件');
+
+  await page.evaluate(`Array.from(document.querySelectorAll('.replay-buttons button')).find((b) => b.textContent === '起点')?.click()`);
+  await sleep(250);
+  text = await page.evaluate('document.body.innerText');
+  check(text.includes('运行尚未开始'), '回到起点显示初始状态');
+  check(await page.evaluate(`document.querySelector('input[aria-label="回放事件位置"]').value`) === '0', '起点游标为 0');
+
+  await page.evaluate(`Array.from(document.querySelectorAll('.replay-buttons button')).find((b) => b.textContent === '下一事件')?.click()`);
+  await sleep(250);
+  check(await page.evaluate(`document.querySelector('input[aria-label="回放事件位置"]').value`) === '1', '逐事件推进游标');
+  text = await page.evaluate('document.body.innerText');
+  check(text.includes('任务就绪'), '逐事件重建任务状态');
+
+  await page.evaluate(`document.querySelector('.react-flow__node')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+  await sleep(350);
+  text = await page.evaluate('document.body.innerText');
+  check(text.includes('取消筛选'), 'DAG 节点筛选历史事件');
+
+  await page.evaluate(`Array.from(document.querySelectorAll('.replay-buttons button')).find((b) => b.textContent === '最新状态')?.click()`);
+  await page.evaluate(`Array.from(document.querySelectorAll('.replay-buttons button')).find((b) => b.textContent === '播放回放')?.click()`);
+  await sleep(850);
+  const cursor = await page.evaluate(`Number(document.querySelector('input[aria-label="回放事件位置"]').value)`);
+  check(cursor > 0 && cursor < 186, `自动播放推进事件（当前 ${cursor}）`);
+  await page.evaluate(`Array.from(document.querySelectorAll('.replay-buttons button')).find((b) => b.textContent === '暂停回放')?.click()`);
 }
 
 async function verifyFailure(cdp) {

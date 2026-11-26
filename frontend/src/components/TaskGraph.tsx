@@ -27,6 +27,7 @@ export function TaskGraph({ tasks, selectedId, onNodeClick }: Props) {
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ReactFlow
+        key={tasks.map((task) => task.task_id).join('|')}
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}

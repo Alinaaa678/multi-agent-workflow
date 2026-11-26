@@ -8,7 +8,14 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { controlTaskRun, fetchTaskRun, type RunEvent, type TaskApiResult } from '../api/taskRunApi';
+import {
+  controlTaskRun,
+  fetchTaskRun,
+  type ControlAck,
+  type RunEvent,
+  type TaskApiResult,
+  type TaskControlAction,
+} from '../api/taskRunApi';
 import type { Task } from '../types/task';
 
 export interface UseTaskRunOptions {
@@ -27,9 +34,14 @@ export interface TaskRunState {
   loading: boolean;
   error: string | null;
   lastUpdated: string | null;
+  lastControl: ControlAck | null;
   reload: () => void;
   step: () => Promise<void>;
   runToCompletion: (maxSteps?: number) => Promise<void>;
+  pause: () => Promise<void>;
+  resume: () => Promise<void>;
+  cancel: () => Promise<void>;
+  retry: (taskId: string) => Promise<void>;
 }
 
 export function useTaskRun(options: UseTaskRunOptions): TaskRunState {
@@ -41,16 +53,21 @@ export function useTaskRun(options: UseTaskRunOptions): TaskRunState {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [lastControl, setLastControl] = useState<(ControlAck & { baseUrl: string; runId: string }) | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const [tick, setTick] = useState(0);
 
   const reload = useCallback(() => setTick((value) => value + 1), []);
 
-  const control = useCallback(async (action: 'step' | 'run', maxSteps = 200) => {
+  const control = useCallback(async (
+    action: TaskControlAction,
+    controlOptions: { maxSteps?: number; taskId?: string; reason?: string } = {},
+  ) => {
     if (!enabled || !baseUrl || !runId) return;
     setLoading(true);
     try {
-      await controlTaskRun({ baseUrl, runId }, action, maxSteps);
+      const response = await controlTaskRun({ baseUrl, runId }, action, controlOptions);
+      if (response.ack) setLastControl({ ...response.ack, baseUrl, runId });
       setError(null);
       reload();
     } catch (caught) {
@@ -61,7 +78,17 @@ export function useTaskRun(options: UseTaskRunOptions): TaskRunState {
   }, [baseUrl, enabled, reload, runId]);
 
   const step = useCallback(() => control('step'), [control]);
-  const runToCompletion = useCallback((maxSteps = 200) => control('run', maxSteps), [control]);
+  const runToCompletion = useCallback(
+    (maxSteps = 200) => control('run', { maxSteps }),
+    [control],
+  );
+  const pause = useCallback(() => control('pause', { reason: '课堂演示：暂停后续派发' }), [control]);
+  const resume = useCallback(() => control('resume', { reason: '课堂演示：人工继续' }), [control]);
+  const cancel = useCallback(() => control('cancel', { reason: '课堂演示：人工取消运行' }), [control]);
+  const retry = useCallback(
+    (taskId: string) => control('retry', { taskId, reason: '课堂演示：人工确认后重试' }),
+    [control],
+  );
 
   useEffect(() => {
     if (!enabled || !baseUrl || !runId) return undefined;
@@ -109,5 +136,22 @@ export function useTaskRun(options: UseTaskRunOptions): TaskRunState {
     };
   }, [baseUrl, runId, pollIntervalMs, enabled, tick]);
 
-  return { tasks, meta, events, dag, loading, error, lastUpdated, reload, step, runToCompletion };
+  return {
+    tasks,
+    meta,
+    events,
+    dag,
+    loading,
+    error,
+    lastUpdated,
+    // 回执按运行身份派生，切换运行时不展示上一运行的控制结果。
+    lastControl: lastControl?.baseUrl === baseUrl && lastControl.runId === runId ? lastControl : null,
+    reload,
+    step,
+    runToCompletion,
+    pause,
+    resume,
+    cancel,
+    retry,
+  };
 }
