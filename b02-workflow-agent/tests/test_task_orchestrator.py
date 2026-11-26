@@ -479,8 +479,8 @@ class TransitionTableTests(OrchestratorTestCase):
         "PENDING": {"READY", "WAITING_DEPENDENCY", "BLOCKED"},
         "WAITING_DEPENDENCY": {"READY", "BLOCKED"},
         "READY": {"RUNNING", "BLOCKED"},
-        "RUNNING": {"REVIEWING", "FAILED", "RETRYING", "BLOCKED"},
-        "REVIEWING": {"SUCCEEDED", "FAILED", "RETRYING", "BLOCKED"},
+        "RUNNING": {"REVIEWING", "FAILED", "RETRYING", "BLOCKED", "READY"},
+        "REVIEWING": {"SUCCEEDED", "FAILED", "RETRYING", "BLOCKED", "READY"},
         "RETRYING": {"READY", "FAILED", "BLOCKED"},
         "FAILED": {"BLOCKED", "READY"},
         "BLOCKED": {"READY"},
@@ -1074,6 +1074,7 @@ class SnapshotAndDagTests(OrchestratorTestCase):
             "finished_at",
             "duration_seconds",
             "artifacts",
+            "result",
             "attempts",
         }
         self.assertEqual(set(), required - set(task))
@@ -1083,6 +1084,11 @@ class SnapshotAndDagTests(OrchestratorTestCase):
         self.assertEqual("abc1234", task["candidate_commit"])
         self.assertEqual([{"path": "artifacts/T04.md", "kind": "document", "sha256": ARTIFACT_SHA}], task["artifacts"])
         self.assertEqual(["evidence-1"], task["evidence_refs"])
+        self.assertEqual("SUCCEEDED", task["result"]["status"])
+        self.assertEqual(
+            [{"test_id": "TC-1", "status": "PASS", "log_sha256": LOG_SHA}],
+            task["result"]["test_results"],
+        )
         self.assertIsNone(task["blocked_reason"])
         self.assertEqual(1, len(task["attempts"]))
         attempt = task["attempts"][0]

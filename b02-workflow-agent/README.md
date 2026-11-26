@@ -29,7 +29,8 @@
 | GET | `/api/task-runs/{run_id}/events?after=&limit=` | 事件流（游标分页） |
 | GET | `/api/task-runs/{run_id}/dag` | DAG 视图（节点 + 边） |
 | POST | `/api/task-runs/{run_id}/replay` | 事件回放并与快照比对 |
-| GET | `/api/task-runs/{run_id}/restore` | 断点恢复视图 |
+| GET | `/api/task-runs/{run_id}/restore` | 只读断点恢复视图，不修改状态 |
+| POST | `/api/task-runs/{run_id}/recover` | 崩溃任务重新入队，不自动执行 |
 
 第一阶段讨论运行在 `COMPLETED` 且已发布 R1 后，可通过
 `GET /api/runs/{run_id}/design-spec` 查看 B01 可消费的设计规格。阶段二也可以直接使用
@@ -58,6 +59,11 @@ curl http://127.0.0.1:7100/api/task-runs/TASK-RUN-XXXXXXXX/dag
   `blocked_reason`。
 - `RUNNING`/`REVIEWING` 期间重复派发被拒绝；`attempt_id` 单调递增，`retry_count`
   只在失败重派时递增，且不超过任务的 `retry_budget`。
+- B02 按任务 `timeout` 独立计时，`TASK_TIMEOUT` 自动进入有限重试；预算耗尽后失败并阻断下游。
+  迟到结果不会覆盖新状态。超时只停止等待，不能保证强杀外部同步任务。
+- 进程重启后调用 `POST /api/task-runs/{run_id}/recover`，把中断的 `RUNNING`/`REVIEWING`
+  任务记为 `INTERRUPTED` 并重新放回 `READY`；恢复不消耗重试预算、不自动执行、不重复成功任务。
+  `RUN_RECOVERED` 与 `TASK_READY` 事件保证审计和回放一致；`GET /restore` 始终保持只读。
 - 事件绑定 `task_id` / `attempt_id` / `plan_version` / `input_snapshot`；
   `TASK_OUTPUT_SUBMITTED` 与 `TASK_ACCEPTED` 额外携带 `candidate_commit`。
 - **只有 B02 写状态**：B04 只返回执行结果，B06 只返回判定与事件。

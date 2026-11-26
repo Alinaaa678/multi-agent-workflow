@@ -248,6 +248,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             if action == "run":
                 self._json(api.run(run_id, payload))
                 return True
+            if action in ("pause", "resume", "cancel", "recover", "retry"):
+                self._json(getattr(api, action)(run_id, payload))
+                return True
             if action == "replay":
                 self._json(api.replay(run_id))
                 return True

@@ -213,6 +213,32 @@ class TaskApi:
             raise WorkflowError("max_steps 必须大于 0。", 400)
         return self.orchestrator.run(run_id, max_steps=max_steps)
 
+    @staticmethod
+    def _control_kwargs(payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "request_id": str(payload.get("request_id") or "") or None,
+            "operator": str(payload.get("operator") or "human-operator"),
+            "reason": str(payload.get("reason") or ""),
+        }
+
+    def pause(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self.orchestrator.pause(run_id, **self._control_kwargs(payload))
+
+    def resume(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self.orchestrator.resume(run_id, **self._control_kwargs(payload))
+
+    def cancel(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self.orchestrator.cancel(run_id, **self._control_kwargs(payload))
+
+    def recover(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self.orchestrator.recover(run_id, **self._control_kwargs(payload))
+
+    def retry(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        task_id = str(payload.get("task_id") or "").strip()
+        if not task_id:
+            raise WorkflowError("人工重试必须包含 task_id。", 400)
+        return self.orchestrator.retry_task(run_id, task_id, **self._control_kwargs(payload))
+
     def events(self, run_id: str, query: dict[str, list[str]]) -> dict[str, Any]:
         after_raw = (query.get("after") or [None])[0]
         after: int | None = None

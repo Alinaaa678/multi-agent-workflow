@@ -247,6 +247,71 @@ class TaskApiTests(unittest.TestCase):
         status, _ = self.call("GET", f"/api/task-runs/{run['run_id']}/events?limit=999999")
         self.assertEqual(status, 400)
 
+    def test_pause_resume_cancel_control_endpoints(self):
+        _, run = self._start_run("TASK-RUN-CONTROL")
+        base = f"/api/task-runs/{run['run_id']}"
+
+        status, paused = self.call("POST", f"{base}/pause", {
+            "request_id": "CTRL-HTTP-PAUSE", "operator": "teacher", "reason": "课堂展示",
+        })
+        self.assertEqual(status, 200)
+        self.assertEqual("PAUSED", paused["run"]["status"])
+        self.assertEqual("CTRL-HTTP-PAUSE", paused["ack"]["request_id"])
+        self.assertEqual(self.call("POST", f"{base}/step")[0], 409)
+
+        status, resumed = self.call("POST", f"{base}/resume", {"operator": "teacher"})
+        self.assertEqual(status, 200)
+        self.assertEqual("RUNNING", resumed["run"]["status"])
+        self.assertEqual(self.call("POST", f"{base}/step")[0], 200)
+
+        status, cancelled = self.call("POST", f"{base}/cancel", {"reason": "结束演示"})
+        self.assertEqual(status, 200)
+        self.assertEqual("CANCELLED", cancelled["run"]["status"])
+        self.assertEqual(self.call("POST", f"{base}/run", {"max_steps": 20})[0], 409)
+        events = self.call("GET", f"{base}/events?limit=5000")[1]["events"]
+        types = {event["type"] for event in events}
+        self.assertTrue({"RUN_PAUSED", "RUN_RESUMED", "RUN_CANCELLED"}.issubset(types))
+
+    def test_retry_endpoint_requires_task_id(self):
+        _, run = self._start_run("TASK-RUN-RETRY-VALIDATION")
+        status, body = self.call("POST", f"/api/task-runs/{run['run_id']}/retry", {})
+        self.assertEqual(status, 400)
+        self.assertIn("task_id", body["error"])
+
+    def test_recover_endpoint_requeues_interrupted_task_and_get_restore_stays_readonly(self):
+        _, run = self._start_run("TASK-RUN-RECOVER-HTTP")
+        task_id = next(task["task_id"] for task in run["tasks"] if task["state"] == "READY")
+        RequestHandler.service.task_api.store.update_task_state(
+            run["run_id"], task_id, state="RUNNING", attempt_id=1,
+            started_at="2026-11-26T00:00:00Z",
+        )
+        base = f"/api/task-runs/{run['run_id']}"
+
+        status, restored = self.call("GET", f"{base}/restore")
+        self.assertEqual(200, status)
+        self.assertEqual([task_id], restored["restore"]["in_flight_tasks"])
+        current = self.call("GET", base)[1]["run"]
+        self.assertEqual("RUNNING", next(task for task in current["tasks"] if task["task_id"] == task_id)["state"])
+
+        status, recovered = self.call("POST", f"{base}/recover", {
+            "request_id": "CTRL-HTTP-RECOVER", "operator": "teacher", "reason": "模拟进程重启",
+        })
+        self.assertEqual(200, status)
+        self.assertEqual([task_id], recovered["recovered_tasks"])
+        self.assertEqual("CTRL-HTTP-RECOVER", recovered["ack"]["request_id"])
+        recovered_task = next(task for task in recovered["run"]["tasks"] if task["task_id"] == task_id)
+        self.assertEqual("READY", recovered_task["state"])
+        self.assertEqual("INTERRUPTED", recovered_task["attempts"][-1]["state"])
+        self.assertEqual("模拟进程重启", recovered_task["attempts"][-1]["reason"])
+
+        status, completed = self.call("POST", f"{base}/run", {"max_steps": 200})
+        self.assertEqual(200, status)
+        self.assertEqual("SUCCEEDED", completed["run"]["status"])
+        replayed = self.call("POST", f"{base}/replay")[1]["replay"]
+        self.assertTrue(replayed["consistent"])
+        events = self.call("GET", f"{base}/events?limit=5000")[1]["events"]
+        self.assertIn("RUN_RECOVERED", {event["type"] for event in events})
+
     def test_health_reports_both_controllers(self):
         status, body = self.call("GET", "/api/health")
         self.assertEqual(status, 200)

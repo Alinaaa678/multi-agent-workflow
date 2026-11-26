@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import queue
 import re
 import threading
 from datetime import datetime, timezone
@@ -40,8 +41,8 @@ ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
     "PENDING": frozenset({"READY", "WAITING_DEPENDENCY", "BLOCKED"}),
     "WAITING_DEPENDENCY": frozenset({"READY", "BLOCKED"}),
     "READY": frozenset({"RUNNING", "BLOCKED"}),
-    "RUNNING": frozenset({"REVIEWING", "FAILED", "RETRYING", "BLOCKED"}),
-    "REVIEWING": frozenset({"SUCCEEDED", "FAILED", "RETRYING", "BLOCKED"}),
+    "RUNNING": frozenset({"REVIEWING", "FAILED", "RETRYING", "BLOCKED", "READY"}),
+    "REVIEWING": frozenset({"SUCCEEDED", "FAILED", "RETRYING", "BLOCKED", "READY"}),
     "RETRYING": frozenset({"READY", "FAILED", "BLOCKED"}),
     "FAILED": frozenset({"BLOCKED", "READY"}),
     "BLOCKED": frozenset({"READY"}),
@@ -60,13 +61,21 @@ EVENT_TYPES = (
     "TASK_ACCEPTED",
     "TASK_REJECTED",
     "TASK_RETRY_SCHEDULED",
+    "TASK_RETRY_REQUESTED",
     "TASK_BLOCKED",
     "TASK_COMPLETED",
     "TASK_FAILED",
     # 依赖未满足时发出的显式事件；没有它，回放无法区分
     # “从未评估过（PENDING）”与“已评估但依赖未就绪（WAITING_DEPENDENCY）”。
     "TASK_WAITING_DEPENDENCY",
+    # 运行级控制事件。它们不改变任务状态，但为人工操作提供审计轨迹。
+    "RUN_PAUSED",
+    "RUN_RESUMED",
+    "RUN_CANCELLED",
+    "RUN_RECOVERED",
 )
+
+CONTROLLED_RUN_STATES = frozenset({"PAUSED", "CANCELLED"})
 
 # 这些事件必须同时携带 task_id/attempt_id/plan_version/input_snapshot。
 BINDING_EVENTS = frozenset(
@@ -189,6 +198,8 @@ class TaskOrchestrator:
         self.executor = executor or _default_executor
         self.reviewer = reviewer or _default_reviewer
         self._lock = threading.RLock()
+        # 串行化调度步，但执行 B04 时不持有状态锁，暂停/取消/恢复仍可操作。
+        self._schedule_lock = threading.RLock()
 
     # ---------- 计划与运行 ----------
 
@@ -338,7 +349,12 @@ class TaskOrchestrator:
         for task_id in order:
             task = tasks[task_id]
             record = states[task_id]
-            if record["state"] not in ("PENDING", "WAITING_DEPENDENCY"):
+            # 只有“上游失败”造成的 BLOCKED 可在上游人工重试成功后自动恢复。
+            # 执行器主动报告的 BLOCKED 不会被这里静默重派。
+            recoverable = record["state"] == "BLOCKED" and str(
+                record.get("blocked_reason") or ""
+            ).startswith("upstream_failed:")
+            if record["state"] not in ("PENDING", "WAITING_DEPENDENCY") and not recoverable:
                 continue
             dependency_states = [states[dep]["state"] for dep in task.get("depends_on") or []]
             failed = [dep for dep in task.get("depends_on") or [] if states[dep]["state"] in FAILURE_STATES]
@@ -360,7 +376,12 @@ class TaskOrchestrator:
                     task_id,
                     "READY",
                     event_type="TASK_READY",
-                    payload={"depends_on": list(task.get("depends_on") or [])},
+                    payload={
+                        "depends_on": list(task.get("depends_on") or []),
+                        "recovered_after_upstream_retry": recoverable,
+                    },
+                    blocked_reason=None,
+                    error=None,
                 )
                 ready.append(task_id)
             elif record["state"] == "PENDING":
@@ -407,9 +428,10 @@ class TaskOrchestrator:
     # ---------- 派发 / 执行 / 验收 ----------
 
     def dispatch(self, run_id: str, task_id: str) -> dict[str, Any]:
-        """派发给 B04 执行；返回执行结果。重复派发被拒绝。"""
+        """派发给 B04；B02 独立计时，超时结果进入现有限重试流程。"""
         with self._lock:
             run = self._require_run(run_id)
+            self._assert_dispatchable(run)
             plan = self._plan_of(run)
             tasks = self._task_map(plan)
             self._refresh_dependencies(run, plan, tasks)
@@ -423,6 +445,8 @@ class TaskOrchestrator:
 
             attempt_id = record["attempt_id"] + 1
             started = now_iso()
+            request = self.build_execution_request(run, tasks[task_id], attempt_id)
+            self._timeout_seconds(request.get("timeout"))
             self._transition(
                 run,
                 task_id,
@@ -442,21 +466,80 @@ class TaskOrchestrator:
                 attempt_id=attempt_id,
                 payload={"goal": tasks[task_id].get("goal")},
             )
-            request = self.build_execution_request(run, tasks[task_id], attempt_id)
+
+        # 不持有状态锁等待同步执行器：重复派发仍会被 RUNNING 状态拒绝，
+        # 同时慢任务不会卡住暂停、取消、快照和崩溃恢复操作。
+        result = self._execute_with_timeout(request)
+        with self._lock:
+            run = self._require_run(run_id)
+            plan = self._plan_of(run)
+            task = self._task_map(plan)[task_id]
+            latest = self.store.get_task_state(run_id, task_id)
+            if (
+                latest is None
+                or latest["attempt_id"] != attempt_id
+                or latest["state"] not in ("RUNNING", "REVIEWING")
+            ):
+                # 恢复或人工干预已经推进了现场；旧 attempt 的结果只能丢弃。
+                return {**result, "stale": True, "ignored_by_orchestrator": True}
+            self._apply_result(run, plan, task, attempt_id, result, started)
+            return result
+
+    @staticmethod
+    def _timeout_seconds(value: Any) -> int:
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise TaskOrchestrationError("task.timeout 必须是正整数秒。")
+        return value
+
+    def _execute_with_timeout(self, request: dict[str, Any]) -> dict[str, Any]:
+        """在守护线程中调用同步执行器；迟到结果只进队列，不再触碰状态。"""
+        timeout = self._timeout_seconds(request.get("timeout"))
+        results: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=1)
+
+        def execute() -> None:
             try:
                 result = self.executor(request)
+                if not isinstance(result, dict):
+                    raise TypeError("executor 必须返回字典结果")
             except Exception as error:  # 执行器异常按失败处理，不吞掉原因
                 result = {
-                    "task_id": task_id,
-                    "attempt_id": attempt_id,
+                    "task_id": request["task_id"],
+                    "attempt_id": request["attempt_id"],
                     "status": "FAILED",
                     "error": f"{type(error).__name__}: {error}",
                     "artifacts": [],
                     "evidence_refs": [],
-                    "known_issues": [{"code": "EXECUTOR_ERROR", "message": str(error), "severity": "blocking"}],
+                    "known_issues": [
+                        {"code": "EXECUTOR_ERROR", "message": str(error), "severity": "blocking"}
+                    ],
                 }
-            self._apply_result(run, plan, tasks[task_id], attempt_id, result, started)
-            return result
+            results.put_nowait(result)
+
+        threading.Thread(
+            target=execute,
+            name=f"B02-{request['run_id']}-{request['task_id']}-{request['attempt_id']}",
+            daemon=True,
+        ).start()
+        try:
+            return results.get(timeout=timeout)
+        except queue.Empty:
+            message = f"TASK_TIMEOUT: 执行超过 {timeout} 秒"
+            return {
+                "task_id": request["task_id"],
+                "attempt_id": request["attempt_id"],
+                "status": "FAILED",
+                "error": message,
+                "artifacts": [],
+                "evidence_refs": [],
+                "known_issues": [
+                    {
+                        "code": "TASK_TIMEOUT",
+                        "message": message,
+                        "severity": "blocking",
+                        "timeout_seconds": timeout,
+                    }
+                ],
+            }
 
     @staticmethod
     def build_execution_request(
@@ -518,7 +601,14 @@ class TaskOrchestrator:
             self._record_attempt(run, task_id, attempt_id, "BLOCKED", started_at, reason)
             return
         if result.get("status") != "SUCCEEDED":
-            self._fail_attempt(run, task, attempt_id, started_at, reason=result.get("error") or "execution_failed")
+            self._fail_attempt(
+                run,
+                task,
+                attempt_id,
+                started_at,
+                reason=result.get("error") or "execution_failed",
+                findings=result.get("known_issues") or [],
+            )
             return
         # 契约要求：TASK_OUTPUT_SUBMITTED 必带 candidate_commit。
         # 执行器声称成功却没有提交引用时按失败处理，而不是发出缺字段的事件。
@@ -862,60 +952,331 @@ class TaskOrchestrator:
             candidate_commit=candidate_commit,
         )
 
+    # ---------- 人工执行控制 ----------
+
+    @staticmethod
+    def _control_ack(
+        action: str,
+        request_id: str | None,
+        operator: str,
+        message: str,
+    ) -> dict[str, Any]:
+        return {
+            "request_id": request_id or "CTRL-" + uuid4().hex[:12].upper(),
+            "action": action,
+            "accepted": True,
+            "operator": operator,
+            "message": message,
+            "timestamp": now_iso(),
+        }
+
+    @staticmethod
+    def _assert_dispatchable(run: dict[str, Any]) -> None:
+        if run["status"] == "PAUSED":
+            raise TaskOrchestrationError("运行已暂停，请先继续运行。", 409)
+        if run["status"] == "CANCELLED":
+            raise TaskOrchestrationError("运行已取消，不能继续派发任务。", 409)
+
+    def pause(
+        self,
+        run_id: str,
+        *,
+        request_id: str | None = None,
+        operator: str = "human-operator",
+        reason: str = "",
+    ) -> dict[str, Any]:
+        """暂停后续派发；同步执行中的当前任务不会被强行终止。"""
+        with self._lock:
+            run = self._require_run(run_id)
+            if run["status"] == "PAUSED":
+                return {
+                    "ack": self._control_ack("pause", request_id, operator, "运行已处于暂停状态。"),
+                    "run": self.snapshot(run_id),
+                }
+            if run["status"] in ("SUCCEEDED", "FAILED", "BLOCKED", "CANCELLED"):
+                raise TaskOrchestrationError(f"运行状态 {run['status']} 不能暂停。", 409)
+            self.store.set_run_status(run_id, "PAUSED")
+            run["status"] = "PAUSED"
+            self._emit(run, "RUN_PAUSED", payload={"operator": operator, "reason": reason})
+            return {
+                "ack": self._control_ack("pause", request_id, operator, "已暂停后续任务派发。"),
+                "run": self.snapshot(run_id),
+            }
+
+    def resume(
+        self,
+        run_id: str,
+        *,
+        request_id: str | None = None,
+        operator: str = "human-operator",
+        reason: str = "",
+    ) -> dict[str, Any]:
+        with self._lock:
+            run = self._require_run(run_id)
+            if run["status"] != "PAUSED":
+                raise TaskOrchestrationError("只有已暂停的运行才能继续。", 409)
+            # 先脱离受控状态，再根据任务快照恢复真实运行状态。
+            self.store.set_run_status(run_id, "RUNNING")
+            run["status"] = "RUNNING"
+            self._sync_run_status(run)
+            self._emit(run, "RUN_RESUMED", payload={"operator": operator, "reason": reason})
+            return {
+                "ack": self._control_ack("resume", request_id, operator, "运行已继续，可再次单步或运行至完成。"),
+                "run": self.snapshot(run_id),
+            }
+
+    def cancel(
+        self,
+        run_id: str,
+        *,
+        request_id: str | None = None,
+        operator: str = "human-operator",
+        reason: str = "",
+    ) -> dict[str, Any]:
+        """取消整个运行；保留任务现场和事件，不伪造任务成功或失败。"""
+        with self._lock:
+            run = self._require_run(run_id)
+            if run["status"] == "CANCELLED":
+                return {
+                    "ack": self._control_ack("cancel", request_id, operator, "运行已经取消。"),
+                    "run": self.snapshot(run_id),
+                }
+            if run["status"] == "SUCCEEDED":
+                raise TaskOrchestrationError("已完成的运行不能取消。", 409)
+            self.store.set_run_status(run_id, "CANCELLED")
+            run["status"] = "CANCELLED"
+            self._emit(run, "RUN_CANCELLED", payload={"operator": operator, "reason": reason})
+            return {
+                "ack": self._control_ack("cancel", request_id, operator, "运行已取消，任务现场已保留。"),
+                "run": self.snapshot(run_id),
+            }
+
+    def recover(
+        self,
+        run_id: str,
+        *,
+        request_id: str | None = None,
+        operator: str = "human-operator",
+        reason: str = "",
+    ) -> dict[str, Any]:
+        """把进程崩溃遗留的 RUNNING/REVIEWING 任务重新入队，不自动重跑。"""
+        with self._lock:
+            run = self._require_run(run_id)
+            if run["status"] == "CANCELLED":
+                raise TaskOrchestrationError("运行已取消，不能恢复任务。", 409)
+            plan = self._plan_of(run)
+            tasks = self._task_map(plan)
+            records = self.store.list_task_states(run_id)
+            states = {item["task_id"]: item["state"] for item in records}
+            interrupted = [item for item in records if item["state"] in ("RUNNING", "REVIEWING")]
+            # 先检查全部候选，避免恢复一半才发现依赖不满足。
+            for record in interrupted:
+                task_id = record["task_id"]
+                unfinished = [
+                    dep for dep in tasks[task_id].get("depends_on") or []
+                    if states.get(dep) != "SUCCEEDED"
+                ]
+                if unfinished:
+                    raise TaskOrchestrationError(
+                        f"{task_id} 的上游尚未全部通过: {', '.join(sorted(unfinished))}", 409
+                    )
+
+            recovered: list[str] = []
+            recovery_reason = reason or "PROCESS_RESTART_RECOVERY"
+            for record in interrupted:
+                task_id = record["task_id"]
+                previous_state = record["state"]
+                previous_attempt = record["attempt_id"]
+                self._record_attempt(
+                    run,
+                    task_id,
+                    previous_attempt,
+                    "INTERRUPTED",
+                    record.get("started_at"),
+                    recovery_reason,
+                    record.get("candidate_commit"),
+                )
+                self._transition(
+                    run,
+                    task_id,
+                    "READY",
+                    event_type="TASK_READY",
+                    payload={
+                        "depends_on": list(tasks[task_id].get("depends_on") or []),
+                        "recovered_after_restart": True,
+                        "previous_state": previous_state,
+                        "interrupted_attempt_id": previous_attempt,
+                        "reason": recovery_reason,
+                        "operator": operator,
+                    },
+                    started_at=None,
+                    finished_at=None,
+                    duration_seconds=None,
+                    error=None,
+                    blocked_reason=None,
+                    candidate_commit=None,
+                    artifacts=[],
+                    evidence_refs=[],
+                    known_issues=[],
+                    result=None,
+                    review=None,
+                )
+                recovered.append(task_id)
+
+            message = (
+                f"已恢复 {len(recovered)} 个中断任务；请继续单步或运行，不会自动重跑。"
+                if recovered else "没有需要恢复的中断任务。"
+            )
+            ack = self._control_ack("recover", request_id, operator, message)
+            if recovered:
+                self._emit(
+                    run,
+                    "RUN_RECOVERED",
+                    payload={
+                        "request_id": ack["request_id"],
+                        "operator": operator,
+                        "reason": recovery_reason,
+                        "recovered_tasks": recovered,
+                    },
+                )
+                self._sync_run_status(run)
+            return {"ack": ack, "recovered_tasks": recovered, "run": self.snapshot(run_id)}
+
+    def retry_task(
+        self,
+        run_id: str,
+        task_id: str,
+        *,
+        request_id: str | None = None,
+        operator: str = "human-operator",
+        reason: str = "",
+    ) -> dict[str, Any]:
+        """人工重派失败/阻塞任务；依赖未通过时拒绝绕过编排规则。"""
+        with self._schedule_lock:
+            with self._lock:
+                run = self._require_run(run_id)
+                self._assert_dispatchable(run)
+                plan = self._plan_of(run)
+                tasks = self._task_map(plan)
+                record = self.store.get_task_state(run_id, task_id)
+                if record is None:
+                    raise TaskOrchestrationError(f"运行中没有任务 {task_id}", 404)
+                if record["state"] not in ("FAILED", "BLOCKED"):
+                    raise TaskOrchestrationError(
+                        f"{task_id} 当前 {record['state']}，只有失败或阻塞任务可人工重试。", 409
+                    )
+                states = {
+                    item["task_id"]: item["state"]
+                    for item in self.store.list_task_states(run_id)
+                }
+                unfinished = [
+                    dep for dep in tasks[task_id].get("depends_on") or []
+                    if states.get(dep) != "SUCCEEDED"
+                ]
+                if unfinished:
+                    raise TaskOrchestrationError(
+                        f"{task_id} 的上游尚未全部通过: {', '.join(sorted(unfinished))}", 409
+                    )
+                self._emit(
+                    run,
+                    "TASK_RETRY_REQUESTED",
+                    task_id,
+                    attempt_id=record["attempt_id"],
+                    payload={"operator": operator, "reason": reason, "previous_state": record["state"]},
+                )
+                self._transition(
+                    run,
+                    task_id,
+                    "READY",
+                    event_type="TASK_READY",
+                    payload={"depends_on": list(tasks[task_id].get("depends_on") or []), "manual_retry": True},
+                    error=None,
+                    blocked_reason=None,
+                    finished_at=None,
+                    candidate_commit=None,
+                    artifacts=[],
+                    evidence_refs=[],
+                    known_issues=[],
+                    review=None,
+                )
+                self._sync_run_status(run)
+            result = self.dispatch(run_id, task_id)
+            with self._lock:
+                latest = self._require_run(run_id)
+                self._refresh_dependencies(latest, plan, tasks)
+                self._sync_run_status(latest)
+                return {
+                    "ack": self._control_ack("retry", request_id, operator, f"{task_id} 已重派，本次结果：{result.get('status')}。"),
+                    "run": self.snapshot(run_id),
+                    "result": result,
+                }
+
     # ---------- 单步 / 整体推进 ----------
 
     def step(self, run_id: str) -> dict[str, Any]:
         """推进一个调度步：刷新依赖 + 派发一个 READY 任务。"""
-        with self._lock:
-            run = self._require_run(run_id)
-            plan = self._plan_of(run)
-            tasks = self._task_map(plan)
-            self._refresh_dependencies(run, plan, tasks)
-            self._sync_run_status(run)
-            ready = [
-                item["task_id"]
-                for item in self.store.list_task_states(run_id)
-                if item["state"] == "READY"
-            ]
-            transitions_before = len(self.store.list_run_events(run_id, limit=1_000_000))
+        with self._schedule_lock:
+            with self._lock:
+                run = self._require_run(run_id)
+                self._assert_dispatchable(run)
+                plan = self._plan_of(run)
+                tasks = self._task_map(plan)
+                self._refresh_dependencies(run, plan, tasks)
+                self._sync_run_status(run)
+                ready = [
+                    item["task_id"]
+                    for item in self.store.list_task_states(run_id)
+                    if item["state"] == "READY"
+                ]
+                transitions_before = len(self.store.list_run_events(run_id, limit=1_000_000))
             if ready:
                 self.dispatch(run_id, ready[0])
-                self._refresh_dependencies(self._require_run(run_id), plan, tasks)
-                self._sync_run_status(self._require_run(run_id))
-            events = self.store.list_run_events(run_id, after_sequence=transitions_before, limit=1_000_000)
-            return {
-                "run": self.snapshot(run_id),
-                "dispatched": ready[:1],
-                "transitions": events,
-            }
+            with self._lock:
+                if ready:
+                    self._refresh_dependencies(self._require_run(run_id), plan, tasks)
+                    self._sync_run_status(self._require_run(run_id))
+                events = self.store.list_run_events(run_id, after_sequence=transitions_before, limit=1_000_000)
+                return {
+                    "run": self.snapshot(run_id),
+                    "dispatched": ready[:1],
+                    "transitions": events,
+                }
 
     def run(self, run_id: str, *, max_steps: int = 200) -> dict[str, Any]:
         if not isinstance(max_steps, int) or max_steps < 1:
             raise TaskOrchestrationError("max_steps 必须是正整数。")
-        with self._lock:
-            events_before = len(self.store.list_run_events(run_id, limit=1_000_000))
+        with self._schedule_lock:
+            with self._lock:
+                run = self._require_run(run_id)
+                self._assert_dispatchable(run)
+                events_before = len(self.store.list_run_events(run_id, limit=1_000_000))
             steps = 0
             while steps < max_steps:
-                snapshot = self.snapshot(run_id)
-                if snapshot["status"] in ("SUCCEEDED", "FAILED", "BLOCKED"):
+                with self._lock:
+                    snapshot = self.snapshot(run_id)
+                    before = len(self.store.list_run_events(run_id, limit=1_000_000))
+                if snapshot["status"] in ("PAUSED", "CANCELLED", "SUCCEEDED", "FAILED", "BLOCKED"):
                     break
                 if not any(item["state"] in ("READY", "PENDING", "WAITING_DEPENDENCY", "RETRYING")
                            for item in snapshot["tasks"]):
                     break
-                before = len(self.store.list_run_events(run_id, limit=1_000_000))
                 self.step(run_id)
-                after = len(self.store.list_run_events(run_id, limit=1_000_000))
+                with self._lock:
+                    after = len(self.store.list_run_events(run_id, limit=1_000_000))
                 steps += 1
                 if after == before:
                     break
-            events = self.store.list_run_events(run_id, after_sequence=events_before, limit=1_000_000)
-            return {
-                "run": self.snapshot(run_id),
-                "steps": steps,
-                "transitions": events,
-            }
+            with self._lock:
+                events = self.store.list_run_events(run_id, after_sequence=events_before, limit=1_000_000)
+                return {
+                    "run": self.snapshot(run_id),
+                    "steps": steps,
+                    "transitions": events,
+                }
 
     def _sync_run_status(self, run: dict[str, Any]) -> None:
+        if run["status"] in CONTROLLED_RUN_STATES:
+            return
         states = [item["state"] for item in self.store.list_task_states(run["run_id"])]
         if not states:
             status = "READY"
@@ -981,6 +1342,9 @@ class TaskOrchestrator:
                         "duration_seconds": record["duration_seconds"],
                         "artifacts": record["artifacts"],
                         "review": record["review"],
+                        # B05 执行观测需要读取 B04 已持久化的测试与日志证据；
+                        # 只读投影不改变任务状态，也不让前端重新执行 Agent。
+                        "result": record["result"],
                         "attempts": attempts_by_task.get(task_id, []),
                     }
                 )

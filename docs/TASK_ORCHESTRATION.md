@@ -53,8 +53,8 @@ PENDING READY RUNNING WAITING_DEPENDENCY REVIEWING FAILED RETRYING BLOCKED SUCCE
 PENDING        -> READY | WAITING_DEPENDENCY | BLOCKED
 WAITING_DEPENDENCY -> READY | BLOCKED
 READY          -> RUNNING | BLOCKED
-RUNNING        -> REVIEWING | FAILED | RETRYING | BLOCKED
-REVIEWING      -> SUCCEEDED | FAILED | RETRYING | BLOCKED
+RUNNING        -> REVIEWING | FAILED | RETRYING | BLOCKED | READY（仅崩溃恢复）
+REVIEWING      -> SUCCEEDED | FAILED | RETRYING | BLOCKED | READY（仅崩溃恢复）
 RETRYING       -> READY | FAILED | BLOCKED
 FAILED         -> BLOCKED | READY
 BLOCKED        -> READY（仅显式解除阻断时）
@@ -163,6 +163,12 @@ priority timeout retry_budget escalation_target
 | GET | `/api/task-runs/{run_id}` | 运行快照 |
 | POST | `/api/task-runs/{run_id}/step` | 推进一个调度步 |
 | POST | `/api/task-runs/{run_id}/run` | 推进直到收敛或步数上限 |
+| POST | `/api/task-runs/{run_id}/pause` | 暂停后续派发，保留当前任务现场 |
+| POST | `/api/task-runs/{run_id}/resume` | 继续已暂停的运行 |
+| POST | `/api/task-runs/{run_id}/cancel` | 取消运行并保留快照与事件 |
+| POST | `/api/task-runs/{run_id}/retry` | 人工重派指定失败/阻塞任务 |
+| GET | `/api/task-runs/{run_id}/restore` | 只读断点恢复视图，不修改状态 |
+| POST | `/api/task-runs/{run_id}/recover` | 将崩溃中断的任务重新入队，不自动执行 |
 | GET | `/api/task-runs/{run_id}/events` | 事件列表（`after`/`limit`） |
 | GET | `/api/task-runs/{run_id}/dag` | DAG 视图（节点+边） |
 | POST | `/api/task-runs/{run_id}/replay` | 事件回放并与快照比对 |
@@ -192,6 +198,20 @@ priority timeout retry_budget escalation_target
 执行→验收→状态推进；响应 `{"run": <snapshot>, "transitions": [<event>]}`。
 `POST .../run` 请求 `{"max_steps": 50}`，响应同 `step` 但 `transitions` 为全部新事件。
 
+控制接口可携带 `request_id`、`operator`、`reason`，响应含 `ack` 与最新 `run`。
+`recover` 只处理崩溃时遗留的 `RUNNING`/`REVIEWING`：先确认其依赖全部 `SUCCEEDED`，
+把旧尝试记为 `INTERRUPTED`（原因 `PROCESS_RESTART_RECOVERY` 或请求中的原因），再迁移到
+`READY` 并发出 `RUN_RECOVERED`。它不会自动重跑，不增加 `retry_count`，也不会重复执行
+`SUCCEEDED` 任务。暂停运行恢复后仍为 `PAUSED`；已取消运行返回 `409`。
+
+```json
+{
+  "ack": {"request_id": "CTRL-RECOVER-1", "action": "recover", "accepted": true},
+  "recovered_tasks": ["T01"],
+  "run": {"run_id": "TASK-RUN-...", "status": "RUNNING"}
+}
+```
+
 ### 3.1 运行快照
 
 ```json
@@ -216,6 +236,10 @@ priority timeout retry_budget escalation_target
       "blocked_reason": null, "error": null,
       "started_at": "...", "finished_at": "...", "duration_seconds": 0.4,
       "artifacts": [{"path": "...", "kind": "...", "sha256": "..."}],
+      "result": {"status": "SUCCEEDED", "execution_mode": "mock|runner",
+                 "test_results": [{"test_id": "...", "status": "PASS|FAIL",
+                                   "log_sha256": "...", "detail": "..."}],
+                 "logs": [{"name": "...", "sha256": "..."}]},
       "attempts": [{"attempt_id": 1, "retry_count": 0, "state": "FAILED",
                     "started_at": "...", "finished_at": "...", "reason": "..."}]
     }
@@ -229,7 +253,9 @@ priority timeout retry_budget escalation_target
 
 ```text
 TASK_READY TASK_DISPATCHED TASK_STARTED TASK_OUTPUT_SUBMITTED TASK_REVIEW_REQUESTED
-TASK_ACCEPTED TASK_REJECTED TASK_RETRY_SCHEDULED TASK_BLOCKED TASK_COMPLETED TASK_FAILED
+TASK_ACCEPTED TASK_REJECTED TASK_RETRY_SCHEDULED TASK_RETRY_REQUESTED TASK_BLOCKED
+TASK_COMPLETED TASK_FAILED TASK_WAITING_DEPENDENCY
+RUN_PAUSED RUN_RESUMED RUN_CANCELLED RUN_RECOVERED
 ```
 
 事件结构：
@@ -322,6 +348,10 @@ B04 输出（`TaskExecutionResult`）：
 - B04 **不得**修改 B02 状态，不写黑板库状态表，只返回上述结构。
 - `status=SUCCEEDED` 只代表“执行完成并自检通过”，不代表验收通过。
 - 每次调用必须返回与请求相同的 `task_id`/`attempt_id`；不一致时 B02 拒绝该结果。
+- B02 按 `timeout` 独立计时；超时生成 `TASK_TIMEOUT` 失败结果并进入有限重试，预算耗尽后
+  任务 `FAILED`、下游按依赖规则 `BLOCKED`。执行等待期间不持有状态锁，控制与快照查询仍可执行。
+- 超时后的迟到结果与已被恢复的旧 attempt 结果不得覆盖新状态。同步执行器运行在守护线程中，
+  **超时只停止等待，不保证强杀外部进程或撤销其副作用**；需要硬取消时由具体 runner 提供能力。
 - 网关需支持 `mock`（确定性模拟，可注入失败/超时）与真实 runner 适配两种模式。
 
 ## 6. B06 质量门（D27/D28/D29/D30）
